@@ -9,10 +9,10 @@
  * Enquanto estiverem vazios, o app roda só em modo demonstração.
  */
 export const config = {
-  googleClientId: '',
-  googleApiKey: '',
+  googleClientId: '385365135855-6d60p4pari7n8imhoo1rpctabhj33gs2.apps.googleusercontent.com',
+  googleApiKey: 'AIzaSyDYkkqBTpkJiAEO-ROldH9RF6EmWT-C2Uc',
   /** Número do projeto no Google Cloud (usado como `appId` do Picker). */
-  googleAppId: '',
+  googleAppId: '385365135855',
   /** Único escopo permitido (SPEC 4.1). */
   oauthScope: 'https://www.googleapis.com/auth/drive.file',
 } as const;

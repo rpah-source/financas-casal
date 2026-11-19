@@ -1,5 +1,8 @@
 # Changelog
 
+## M1.1 · Login Google ligado — 19/11/2026
+- Client ID, chave do Picker (restrita ao site) e número do projeto configurados em `src/config.ts`. O botão **Ajustes › Entrar com Google** passa a aparecer.
+
 ## M1 · Conexão com o Google e a planilha — 19/11/2026
 **O que dá para testar no celular**
 - Sem configurar nada: o modo demonstração continua igual.

@@ -33,6 +33,18 @@ describe('texto livre (SPEC 8.1, teste de aceitação 10)', () => {
     expect(interpretarTexto('aluguel 1.850 conta azul', ctx)).toMatchObject({ valor: 1850, contaId: 'cta_azul', descricao: 'aluguel' });
   });
 
+  it('apelidos com várias palavras: o mais longo vence', () => {
+    const c2 = {
+      ...ctx,
+      contas: [
+        { id: 'cta_cc', nome: 'Conta Laranja', apelidos: ['laranja'], ativa: true },
+        { id: 'cta_cartao', nome: 'Cartão Laranja', apelidos: ['crédito laranja'], ativa: true },
+      ],
+    };
+    expect(interpretarTexto('50 mercado credito laranja', c2)).toMatchObject({ contaId: 'cta_cartao', descricao: 'mercado' });
+    expect(interpretarTexto('50 mercado laranja', c2)).toMatchObject({ contaId: 'cta_cc', descricao: 'mercado' });
+  });
+
   it('dd/mm muito no futuro é do ano passado', () => {
     expect(interpretarTexto('presente 50 24/12', { ...ctx, hoje: '2026-01-05' }).data).toBe('2025-12-24');
   });

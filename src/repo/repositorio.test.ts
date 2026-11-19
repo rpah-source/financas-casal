@@ -91,6 +91,19 @@ describe('Repositório sobre a planilha', () => {
     expect(fonte.abas.Lancamentos![1][cab.indexOf('id')]).toBe(l.id);
   });
 
+  it('ignora linhas só com FALSE (caixinhas desmarcadas) sem virar problema', async () => {
+    const fonte = planilhaMinima();
+    fonte.abas.Lancamentos = [
+      ['id', 'valor', 'data_competencia', 'conta_id', 'conciliado', 'excluido'],
+      ['lan_1', 10, '2026-11-18', 'cta_a', false, false],
+      ['', '', '', '', false, 'FALSE'],
+      ['', '', '', '', false, false],
+    ];
+    const base = await new RepositorioPlanilha(fonte, () => AGORA).carregar(HOJE);
+    expect(base.lancamentos).toHaveLength(1);
+    expect(base.problemas).toEqual([]);
+  });
+
   it('corrige id duplicado (linha copiada à mão)', async () => {
     const fonte = planilhaMinima();
     fonte.abas.Lancamentos = [

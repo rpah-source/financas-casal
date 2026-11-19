@@ -63,23 +63,19 @@ export function interpretarTexto(texto: string, ctx: ContextoTexto): ResultadoTe
     tokens.splice(iValor, tirar);
   }
 
-  // 3) Conta: nome inteiro (pode ter várias palavras) ou um apelido.
+  // 3) Conta: nome inteiro ou apelido (ambos podem ter várias palavras).
+  //    O mais longo vence: "crédito santander" ganha de "santander".
   const ativas = ctx.contas.filter((c) => c.ativa !== false);
-  const textoNorm = () => tokens.map(normalizar).join(' ');
-  for (const c of [...ativas].sort((a, b) => b.nome.length - a.nome.length)) {
-    const nome = normalizar(c.nome);
-    const idx = indiceSequencia(tokens.map(normalizar), nome.split(' '));
-    if (nome && idx >= 0 && textoNorm().includes(nome)) {
+  const candidatos = ativas
+    .flatMap((c) => [c.nome, ...c.apelidos].map((t) => ({ id: c.id, palavras: normalizar(t).split(' ').filter(Boolean) })))
+    .filter((x) => x.palavras.length)
+    .sort((a, b) => b.palavras.length - a.palavras.length || b.palavras.join(' ').length - a.palavras.join(' ').length);
+  for (const c of candidatos) {
+    const idx = indiceSequencia(tokens.map(normalizar), c.palavras);
+    if (idx >= 0) {
       r.contaId = c.id;
-      tokens.splice(idx, nome.split(' ').length);
+      tokens.splice(idx, c.palavras.length);
       break;
-    }
-  }
-  if (!r.contaId) {
-    const i = tokens.findIndex((t) => ativas.some((c) => c.apelidos.some((a) => normalizar(a) === normalizar(t))));
-    if (i >= 0) {
-      r.contaId = ativas.find((c) => c.apelidos.some((a) => normalizar(a) === normalizar(tokens[i])))!.id;
-      tokens.splice(i, 1);
     }
   }
 

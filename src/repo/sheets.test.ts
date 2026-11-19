@@ -53,6 +53,8 @@ describe('SheetsTabelas', () => {
     expect(lista.setDataValidation.rule.condition.values.map((v: any) => v.userEnteredValue)).toEqual([
       'corrente', 'cartao', 'prepago', 'dinheiro',
     ]);
+    // Nunca caixinha de marcar (preencheria FALSE em todas as linhas vazias).
+    expect(reqs.some((r: any) => r.setDataValidation?.rule.condition.type === 'BOOLEAN')).toBe(false);
   });
 
   it('converte as colunas em letras', () => {

@@ -41,3 +41,8 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D32 · Lista de projetos e áreas** do índice fica em cache no aparelho (atualiza pelo botão "Atualizar listas"). A aba `ProjetosAreas` da planilha é usada quando não há índice. Status vazio no índice conta como ativo.
 - **D33 · Total do filtro no Extrato** soma com sinal (despesa −, receita +, ajuste conforme o sinal); transferências não entram no total.
 - **D34 · Filtros do Extrato** usam seletores nativos do iPhone em forma de chip; ficam salvos no aparelho.
+
+## M2.1 (carga inicial)
+- **D35 · Sem caixinhas de marcar:** colunas sim/não usam lista suspensa TRUE/FALSE. A caixinha fazia o Google gravar FALSE em todas as linhas vazias, e o `append` passava a escrever depois da linha 1000. A leitura também ignora linhas só com vazios/FALSE.
+- **D36 · Apelidos com várias palavras** ("crédito laranja") valem no texto livre; o nome ou apelido mais longo vence.
+- **D37 · Saldo de fatura na carga inicial:** entra como um lançamento `despesa` agendado no cartão, natureza `nenhuma` e `excluir_da_analise = TRUE` ("Fatura atual (saldo de abertura)"). Conta para o total da fatura e o caixa reservado (M4), mas não para semanada nem fotografia, porque são compras anteriores ao app.

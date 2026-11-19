@@ -128,8 +128,17 @@ export class SheetsTabelas implements FonteTabelas {
             },
           });
         } else if (col.tipo === 'bool') {
+          // Lista TRUE/FALSE, e não caixinha de marcar: a caixinha faz o Google preencher
+          // FALSE em todas as linhas vazias, e aí as linhas novas iriam para o fim da aba.
           pedidos.push({
-            setDataValidation: { range: intervalo, rule: { condition: { type: 'BOOLEAN' }, strict: false } },
+            setDataValidation: {
+              range: intervalo,
+              rule: {
+                condition: { type: 'ONE_OF_LIST', values: [{ userEnteredValue: 'TRUE' }, { userEnteredValue: 'FALSE' }] },
+                strict: false,
+                showCustomUi: true,
+              },
+            },
           });
         }
       }

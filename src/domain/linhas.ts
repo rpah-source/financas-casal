@@ -54,7 +54,8 @@ export function lerAba(spec: Aba, valores: Celula[][], agoraISO: string = new Da
 
   for (let i = 1; i < valores.length; i++) {
     const bruta = valores[i] ?? [];
-    if (bruta.every(vazio)) continue;
+    // Linha só com vazios ou FALSE (ex.: caixinhas de marcar desmarcadas) não tem dado nenhum.
+    if (bruta.every((c) => vazio(c) || c === false || (typeof c === 'string' && c.trim().toUpperCase() === 'FALSE'))) continue;
     const numeroLinha = i + 1;
     try {
       const { registro, alterada } = lerLinha(spec, bruta, indice, agoraISO);

@@ -1,5 +1,9 @@
 # Changelog
 
+## M2.1 · Ajustes da carga inicial — 19/11/2026
+- Corrigido: planilhas novas criavam caixinhas de marcar que enchiam a aba de "FALSE" e empurravam linhas novas para depois da linha 1000. Agora são listas TRUE/FALSE, e linhas só com FALSE são ignoradas.
+- Texto livre reconhece apelidos com mais de uma palavra.
+
 ## M2 · Lançar e Extrato — 19/11/2026
 **O que dá para testar no celular**
 - Botão **+**: digite o valor no teclado do app (6890 = R$ 68,90), escreva "Onde?" e toque em **Salvar**. A categoria aparece sozinha ("Pela regra" ou "Sugestão"); conta e pessoa vêm da última vez.

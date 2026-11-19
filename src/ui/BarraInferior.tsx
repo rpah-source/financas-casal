@@ -1,6 +1,6 @@
 import { IconeAjustes, IconeExtrato, IconeFotografia, IconeMais, IconeSemana } from './icons';
 
-export type Aba = 'semana' | 'extrato' | 'lancar' | 'fotografia' | 'ajustes';
+export type Aba = 'semana' | 'extrato' | 'lancar' | 'fotografia' | 'ajustes' | 'revisar';
 
 const ITENS: Array<{ aba: Aba; rotulo: string; Icone: () => preact.JSX.Element }> = [
   { aba: 'semana', rotulo: 'Semana', Icone: IconeSemana },

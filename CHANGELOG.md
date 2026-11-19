@@ -1,5 +1,12 @@
 # Changelog
 
+## M3 · Previstos e Semana completa — 19/11/2026
+**O que dá para testar no celular**
+- Ao abrir, o app cria os **previstos** das recorrências (salário, crédito do vale…) do mês atual e dos 2 seguintes. Eles aparecem no Extrato com o ponto tracejado.
+- **Semana** agora mostra: pendências para revisar, saldo do vale ("até o crédito de dd/mm"), saldo de cada conta corrente com o "já reservado", faturas abertas por cartão (fecha em N dias · vence dd/mm, dividido por pessoa), próximos 7 dias e "Novembro deve fechar em R$ X". Tocar em cada bloco mostra a conta.
+- Ao lançar algo parecido com um previsto (mesmo valor ± 15%, data próxima, descrição parecida), o app pergunta **"É … (previsão de …)?"**. No Sim, o previsto vira o lançamento real, sem duplicar.
+- **Revisar**: previstos que passaram da data perguntam **"Isso aconteceu?"** (Sim / Não / Adiar).
+
 ## M2.1 · Ajustes da carga inicial — 19/11/2026
 - Corrigido: planilhas novas criavam caixinhas de marcar que enchiam a aba de "FALSE" e empurravam linhas novas para depois da linha 1000. Agora são listas TRUE/FALSE, e linhas só com FALSE são ignoradas.
 - Texto livre reconhece apelidos com mais de uma palavra.

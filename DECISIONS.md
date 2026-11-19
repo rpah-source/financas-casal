@@ -46,3 +46,14 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D35 · Sem caixinhas de marcar:** colunas sim/não usam lista suspensa TRUE/FALSE. A caixinha fazia o Google gravar FALSE em todas as linhas vazias, e o `append` passava a escrever depois da linha 1000. A leitura também ignora linhas só com vazios/FALSE.
 - **D36 · Apelidos com várias palavras** ("crédito laranja") valem no texto livre; o nome ou apelido mais longo vence.
 - **D37 · Saldo de fatura na carga inicial:** entra como um lançamento `despesa` agendado no cartão, natureza `nenhuma` e `excluir_da_analise = TRUE` ("Fatura atual (saldo de abertura)"). Conta para o total da fatura e o caixa reservado (M4), mas não para semanada nem fotografia, porque são compras anteriores ao app.
+
+## M3
+- **D38 · `dia_mes = primeiro_util`** acrescentado (além de número, `ultimo`, `penultimo_util`, `ultimo_util`), porque o salário cai no 1º dia útil.
+- **D39 · Feriados calculados** para qualquer ano (Páscoa por algoritmo), em vez de uma lista fixa 2026–2028. Inclui Carnaval (seg/ter), Sexta-feira Santa e Corpus Christi, porque os bancos fecham nesses dias.
+- **D40 · Idempotência dos previstos:** conta todo lançamento da recorrência que não está excluído, em qualquer status. Por isso, "excluir" um previsto de recorrência no app marca como **cancelado** (pulado), e não como excluído; senão ele voltaria na próxima abertura.
+- **D41 · "Adiar"** em "Isso aconteceu?" muda a data do previsto para hoje; ele volta a perguntar depois da janela de conciliação.
+- **D42 · Saldo da conta** soma os realizados com `data_caixa` desde a `data_saldo_inicial` (inclusive) até hoje: o saldo informado é o do começo daquele dia.
+- **D43 · "Já reservado"** vai de hoje até o próximo salário (recorrência de receita com categoria "Salário" na conta); sem salário, até o fim do mês. Faturas de cartão entram nessa conta no M4.
+- **D44 · Faturas abertas na Semana (provisório até o M4):** total = compras agendadas no cartão − estornos, dividido por pessoa; fechamento/vencimento pelos Parâmetros vigentes. Compras no cartão não aparecem em "Próximos 7 dias" (saem na fatura).
+- **D45 · Contas da Fotografia (9.2) já implementadas** porque a Semana mostra a projeção do mês (9.5). A tela da Fotografia continua no M6. A provisão de sazonais soma os lançamentos sazonais dos próximos 12 meses e as ocorrências de recorrências sazonais ainda não geradas, ÷ 12.
+- **D46 · Pergunta de casamento** sem gênero gramatical: "É **Faxina** (previsão de amanhã, R$ 180,00)?".

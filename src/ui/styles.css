@@ -482,3 +482,51 @@ body.sem-rolagem { overflow: hidden; }
 .ponto-cancelado { background: transparent; border-color: var(--borda); }
 .legenda-status { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--texto-suave); margin: 16px 0; }
 .legenda-status span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* M3: Semana completa e Revisar */
+.aviso-pendencias {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  margin-bottom: 12px;
+  padding: 10px 16px;
+  border-radius: var(--raio);
+  border: 1px solid #efd9ad;
+  background: var(--atencao-fundo);
+  color: var(--atencao);
+  font-weight: 600;
+  cursor: pointer;
+}
+.grade-saldos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.grade-saldos .cartao { margin: 0; }
+.cartao-saldo summary { list-style: none; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+.cartao-saldo summary::-webkit-details-marker { display: none; }
+.cartao-saldo[open] { grid-column: 1 / -1; }
+.cartao-saldo > p, .cartao-saldo > ul { margin-top: 10px; }
+.saldo-nome { font-size: 14px; color: var(--texto-suave); font-weight: 600; }
+.saldo-valor { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.atencao-texto { color: var(--atencao); }
+.fatura { padding: 8px 0; border-top: 1px solid var(--borda); }
+.fatura:first-of-type { border-top: 0; padding-top: 0; }
+.fatura-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.fatura p { margin: 2px 0 0; }
+.barra-dividida { display: flex; margin: 8px 0 4px; height: 8px; }
+.fatia { height: 100%; }
+.fatia-pessoa1 { background: var(--destaque); }
+.fatia-pessoa2 { background: #c98b3a; }
+.fatia-casal { background: #9fb8ae; }
+.legenda-fatura { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--texto-suave); }
+.legenda-fatura > span { display: inline-flex; align-items: center; gap: 6px; }
+.bolinha { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.lista-proximos { list-style: none; margin: 0; padding: 0; }
+.lista-proximos li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--borda); }
+.lista-proximos li:first-child { border-top: 0; }
+.projecao summary { list-style: none; display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+.projecao summary::-webkit-details-marker { display: none; }
+.projecao > ul { margin-top: 12px; }
+.projecao.atencao strong { color: var(--atencao); }
+.linha-botoes.tres { grid-template-columns: 1fr 1fr 1fr; }
+.linha-botoes.tres button { margin: 4px 0; }
+.cartao.pergunta { border-color: var(--destaque); }

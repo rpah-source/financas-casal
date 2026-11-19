@@ -11,6 +11,16 @@ import type { Lancamento, Natureza, Pessoa, StatusLancamento, TipoLancamento } f
 import { normalizar } from '../domain/valores';
 import { Chips, EscolherCategoria, NOME_NATUREZA, NOME_STATUS, useToast } from './comum';
 import { useApp } from './useApp';
+import { diffDias } from '../domain/dates';
+
+const DIAS_SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+function nomeDia(d: string, hoje: string): string {
+  const dif = diffDias(hoje, d);
+  if (dif === 0) return 'hoje';
+  if (dif === -1) return 'ontem';
+  if (dif === 1) return 'amanhã';
+  return `${DIAS_SEMANA[new Date(`${d}T12:00:00Z`).getUTCDay()]}, ${ddmm(d)}`;
+}
 
 type Aba = 'despesa' | 'receita' | 'transferencia';
 
@@ -77,6 +87,7 @@ function Formulario(p: {
   const [frase, setFrase] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [pergunta, setPergunta] = useState<{ lancamento: Lancamento; previsto: Lancamento; extra: Parameters<typeof app.lancar>[1] } | null>(null);
 
   const tipo: TipoLancamento = aba;
   const sugestao: Sugestao = useMemo(
@@ -171,20 +182,39 @@ function Formulario(p: {
       observacao: obs,
     };
     const criarRegra = manual?.categoria && lembrar && onde.trim() && padraoSugerido(onde);
+    const extra = {
+      regraId: !manual ? sugestao.regraId : null,
+      novaRegra: criarRegra
+        ? { padrao: padraoSugerido(onde), descricao: onde.trim(), categoria: manual!.categoria!, subcategoria: manual!.subcategoria ?? '', natureza: '' }
+        : null,
+    };
+    try {
+      const { lancamento, previsto } = app.prepararLancamento(n, extra.regraId);
+      if (previsto) {
+        setPergunta({ lancamento, previsto, extra });
+        return;
+      }
+      await gravar(lancamento, extra);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui salvar.');
+    }
+  }
+
+  async function gravar(lancamento: Lancamento, extra: Parameters<typeof app.lancar>[1]) {
     setSalvando(true);
     try {
-      const l = await app.lancar(n, {
-        regraId: !manual ? sugestao.regraId : null,
-        novaRegra: criarRegra
-          ? { padrao: padraoSugerido(onde), descricao: onde.trim(), categoria: manual!.categoria!, subcategoria: manual!.subcategoria ?? '', natureza: '' }
-          : null,
+      const antes = extra?.casarCom ?? null;
+      const l = await app.lancar(lancamento, extra);
+      toast({
+        texto: antes ? 'Lançado no lugar do previsto' : 'Lançado',
+        acao: { rotulo: 'Desfazer', f: () => void (antes ? app.editar(antes) : app.excluir(l)) },
       });
-      toast({ texto: 'Lançado', acao: { rotulo: 'Desfazer', f: () => void app.excluir(l) } });
       p.aoTerminar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui salvar.');
     } finally {
       setSalvando(false);
+      setPergunta(null);
     }
   }
 
@@ -386,8 +416,23 @@ function Formulario(p: {
 
       {erro && <p class="erro-campo" role="alert">{erro}</p>}
 
+      {pergunta && (
+        <div class="cartao pergunta" role="alertdialog" aria-label="Lançamento previsto parecido">
+          <p>
+            É <strong>{pergunta.previsto.descricao || 'o lançamento previsto'}</strong> (previsão de{' '}
+            {nomeDia(pergunta.previsto.data_competencia, hoje)}, {formatarBRL(pergunta.previsto.valor)})?
+          </p>
+          <div class="linha-botoes">
+            <button type="button" class="botao-primario" disabled={salvando}
+              onClick={() => gravar(pergunta.lancamento, { ...pergunta.extra, casarCom: pergunta.previsto })}>Sim</button>
+            <button type="button" class="botao-secundario" disabled={salvando}
+              onClick={() => gravar(pergunta.lancamento, pergunta.extra)}>Não, é outro</button>
+          </div>
+        </div>
+      )}
+
       <div class="barra-salvar">
-        <button type="button" class="botao-primario" disabled={salvando} onClick={salvar}>
+        <button type="button" class="botao-primario" disabled={salvando || Boolean(pergunta)} onClick={salvar}>
           {salvando ? 'Salvando…' : 'Salvar'}
         </button>
       </div>

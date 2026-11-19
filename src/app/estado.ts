@@ -2,7 +2,7 @@ import { criarBase, type IdsBase } from '../bootstrap/bootstrap';
 import { googleConfigurado } from '../config';
 import type { Base } from '../domain/base';
 import { hojeSP } from '../domain/dates';
-import { lerParametro } from '../domain/parametros';
+import { lerParametro, lerParametroNumero } from '../domain/parametros';
 import { planilhaDemo } from '../demo/planilhaDemo';
 import { SessaoGoogle } from '../google/auth';
 import { criarClienteGoogle } from '../google/http';
@@ -12,6 +12,9 @@ import { RepositorioComFila } from '../repo/fila';
 import { ErroSemConexao, ErroSessao } from '../repo/fonte';
 import type { ItemIndice } from '../domain/indice';
 import { criarLancamento, duplicarLancamento, type NovoLancamento } from '../domain/lancamento';
+import { gerarParcelasDivida, gerarPrevistos } from '../domain/recorrencias';
+import { casarComPrevisto, procurarPrevisto } from '../domain/casamento';
+import { statusInicial } from '../domain/status';
 import type { Lancamento } from '../domain/types';
 import type { Registro } from '../domain/linhas';
 import { novoId } from '../domain/ids';
@@ -116,6 +119,7 @@ export class App {
       const base = await this.repo.carregar(this.estado.hoje);
       this.set({ base, carregando: false, doCache: false, precisaEntrarDeNovo: false });
       void this.prepararProjetosAreas();
+      await this.gerarPrevistos();
       if (this.estado.modo === 'google' && this.estado.ids?.planilha) {
         await this.armazem.gravar(`base:${this.estado.ids.planilha}`, base).catch(() => {});
       }
@@ -174,7 +178,56 @@ export class App {
     });
   }
 
+  // ---------- Previstos (SPEC 5.3 e 5.6) ----------
+
+  /** Gera previstos das recorrências e parcelas de dívida (mês atual + 2), sem duplicar. */
+  async gerarPrevistos() {
+    const base = this.estado.base;
+    if (!base || !this.repo) return;
+    const cortes = lerParametro(base.parametros, 'semana.cortes', this.estado.hoje) || undefined;
+    const novos = [
+      ...gerarPrevistos({ recorrencias: base.recorrencias, lancamentos: base.lancamentos, contas: base.contas, hoje: this.estado.hoje, cortes }),
+      ...gerarParcelasDivida({ dividas: base.dividas, lancamentos: base.lancamentos, hoje: this.estado.hoje }),
+    ];
+    if (!novos.length) return;
+    this.mudarLancamentos((ls) => [...ls, ...novos]);
+    await this.escrever(() => this.repo!.inserir('Lancamentos', novos as unknown as Registro[])).catch(() => {});
+  }
+
   // ---------- Lançamentos ----------
+
+  /** Monta o lançamento e procura um previsto parecido (SPEC 8.1). Não grava nada. */
+  prepararLancamento(n: NovoLancamento, regraId?: string | null): { lancamento: Lancamento; previsto: Lancamento | null } {
+    const base = this.estado.base;
+    if (!base) throw new Error('Os dados ainda não carregaram');
+    const lancamento = criarLancamento(n, { contas: base.contas, categorias: base.categorias, hoje: this.estado.hoje });
+    const janelaDias = lerParametroNumero(base.parametros, 'conciliacao.janela_dias', this.estado.hoje, 5);
+    const previsto = procurarPrevisto({
+      novo: lancamento, lancamentos: base.lancamentos, recorrencias: base.recorrencias, regras: base.regras, regraId, janelaDias,
+    });
+    return { lancamento, previsto };
+  }
+
+  /** "É a Faxina prevista de sexta?" → Sim: atualiza o previsto no lugar (SPEC 6.2). */
+  async casarComPrevisto(previsto: Lancamento, novo: Lancamento): Promise<Lancamento> {
+    const base = this.estado.base!;
+    const casado = casarComPrevisto(previsto, novo, { contas: base.contas, hoje: this.estado.hoje });
+    await this.editar(casado);
+    return casado;
+  }
+
+  /** "Isso aconteceu?" (SPEC 6.2): sim, não ou adiar. */
+  async resolverVencido(l: Lancamento, resposta: 'sim' | 'nao' | 'adiar') {
+    const base = this.estado.base!;
+    if (resposta === 'sim') {
+      const tipoConta = base.contas.find((c) => c.id === l.conta_id)?.tipo;
+      await this.editar({ ...l, status: statusInicial({ tipo: l.tipo, tipoConta, data: l.data_caixa, hoje: this.estado.hoje }) });
+    } else if (resposta === 'nao') {
+      await this.editar({ ...l, status: 'cancelado' });
+    } else {
+      await this.editar({ ...l, data_competencia: this.estado.hoje, data_caixa: this.estado.hoje });
+    }
+  }
 
   private mudarLancamentos(f: (l: Lancamento[]) => Lancamento[]) {
     const base = this.estado.base;
@@ -182,12 +235,19 @@ export class App {
   }
 
   /** Salva um lançamento novo (SPEC 10.2). Opcionalmente cria a regra de-para sugerida. */
-  async lancar(n: NovoLancamento, extra: { regraId?: string | null; novaRegra?: Registro | null } = {}): Promise<Lancamento> {
+  async lancar(
+    n: NovoLancamento | Lancamento,
+    extra: { regraId?: string | null; novaRegra?: Registro | null; casarCom?: Lancamento | null } = {},
+  ): Promise<Lancamento> {
     const base = this.estado.base;
     if (!base || !this.repo) throw new Error('Os dados ainda não carregaram');
-    const l = criarLancamento(n, { contas: base.contas, categorias: base.categorias, hoje: this.estado.hoje });
-    this.mudarLancamentos((ls) => [...ls, l]);
-    await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
+    let l = 'id' in n ? n : criarLancamento(n, { contas: base.contas, categorias: base.categorias, hoje: this.estado.hoje });
+    if (extra.casarCom) {
+      l = await this.casarComPrevisto(extra.casarCom, l);
+    } else {
+      this.mudarLancamentos((ls) => [...ls, l]);
+      await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
+    }
     if (extra.novaRegra) {
       const agora = new Date().toISOString();
       const regra = { id: novoId('reg'), prioridade: 0, vezes_usada: 1, ativa: true, excluido: false, criado_em: agora, atualizado_em: agora, ...extra.novaRegra };
@@ -210,11 +270,16 @@ export class App {
     await this.escrever(() => this.repo!.atualizar('Lancamentos', novo as unknown as Registro));
   }
 
-  /** Exclusão lógica (SPEC 5): nunca apaga a linha. */
+  /**
+   * Exclusão lógica (SPEC 5): nunca apaga a linha. Previsto de recorrência
+   * vira "cancelado" (pulado), senão a recorrência o criaria de novo.
+   */
   excluir(l: Lancamento) {
+    if (l.recorrencia_id && l.status === 'previsto') return this.editar({ ...l, status: 'cancelado' });
     return this.editar({ ...l, excluido: true });
   }
 
+  /** Desfaz a exclusão (ou o cancelamento) devolvendo a versão anterior. */
   desfazerExclusao(l: Lancamento) {
     return this.editar({ ...l, excluido: false });
   }

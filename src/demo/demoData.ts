@@ -57,9 +57,7 @@ export function gerarDadosDemo(hoje: string): DadosDemo {
     lan(3, 'Farmácia', 45, 'cta_demo_azul', 'Saúde', { subcategoria: 'Farmácia' }),
     lan(4, 'Feira', 52, 'cta_demo_vale', 'Alimentação', { subcategoria: 'Feira' }),
     // Não entram na semanada: fixa, transferência e um previsto.
-    lan(2, 'Streaming de vídeo', 39.9, 'cta_demo_verde', 'Assinaturas', { natureza: 'fixa' }),
     lan(1, 'Transferência para o Vale', 100, 'cta_demo_azul', '', { tipo: 'transferencia', natureza: 'nenhuma', conta_destino_id: 'cta_demo_vale' }),
-    lan(-2, 'Faxina', 180, 'cta_demo_azul', 'Serviços', { subcategoria: 'Faxina', status: 'previsto', natureza: 'fixa' }),
   ];
 
   return {

@@ -6,11 +6,12 @@ import { EmBreve } from './EmBreve';
 import { AvisoToast, ContextoToast, type Toast } from './comum';
 import { TelaExtrato } from './TelaExtrato';
 import { TelaLancar } from './TelaLancar';
+import { TelaRevisar } from './TelaRevisar';
 import { TelaAjustes } from './TelaAjustes';
 import { TelaSemana } from './TelaSemana';
 import { ContextoApp, useApp } from './useApp';
 
-const ABAS: Aba[] = ['semana', 'extrato', 'lancar', 'fotografia', 'ajustes'];
+const ABAS: Aba[] = ['semana', 'extrato', 'lancar', 'fotografia', 'ajustes', 'revisar'];
 
 function abaDaUrl(): Aba {
   const h = window.location.hash.replace(/^#\/?/, '');
@@ -84,7 +85,8 @@ function Casca() {
         </div>
       )}
       <main class="conteudo">
-        {aba === 'semana' && <TelaSemana irParaAjustes={() => irPara('ajustes')} />}
+        {aba === 'semana' && <TelaSemana irPara={irPara} />}
+        {aba === 'revisar' && <TelaRevisar voltar={() => irPara('semana')} />}
         {aba === 'extrato' && <TelaExtrato />}
         {aba === 'lancar' && <TelaLancar aoTerminar={() => irPara(anterior)} />}
         {aba === 'fotografia' && <EmBreve titulo="Fotografia do mês" marco="M6" texto="Aqui vai aparecer o retrato do mês: quanto entra, quanto sai em cada tipo de gasto e como o mês deve fechar." />}

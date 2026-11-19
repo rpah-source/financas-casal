@@ -119,6 +119,16 @@ window.google = window.google || {};
   await p.screenshot({ path: dir+'/m1-semana.png' });
   console.log('valor:', await p.textContent('.destaque-valor'));
 
+  // Lançar pelo app e conferir a linha nova na planilha.
+  await p.click('[aria-label="Lançar (novo gasto)"]');
+  for (const k of ['3','2','5','0']) await p.click(`.tecla[aria-label="${k}"]`);
+  await p.click('#onde'); await p.fill('#onde', 'farmácia');
+  await p.click('text=Salvar');
+  await p.waitForSelector('.toast');
+  await p.waitForTimeout(500);
+  const ult = tabs.Lancamentos[tabs.Lancamentos.length-1];
+  console.log('lançado na planilha:', { valor: ult[ci.indexOf('valor')], descricao: ult[ci.indexOf('descricao')], categoria: ult[ci.indexOf('categoria')], sub: ult[ci.indexOf('subcategoria')], status: ult[ci.indexOf('status')] });
+
   // Reabrir o app: deve abrir direto em modo Google com os dados.
   await p.reload();
   await p.waitForSelector('text=Ainda podemos gastar');

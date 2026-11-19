@@ -10,6 +10,12 @@ import { escolherNoDrive, type TipoEscolha } from '../google/picker';
 import { ArmazemMemoria, criarArmazem, type Armazem } from '../repo/armazem';
 import { RepositorioComFila } from '../repo/fila';
 import { ErroSemConexao, ErroSessao } from '../repo/fonte';
+import type { ItemIndice } from '../domain/indice';
+import { criarLancamento, duplicarLancamento, type NovoLancamento } from '../domain/lancamento';
+import type { Lancamento } from '../domain/types';
+import type { Registro } from '../domain/linhas';
+import { novoId } from '../domain/ids';
+import { lerIndice } from '../google/indice';
 import { MemoriaTabelas } from '../repo/memoria';
 import { RepositorioPlanilha } from '../repo/repositorio';
 import { SheetsTabelas } from '../repo/sheets';
@@ -34,6 +40,8 @@ export interface Estado {
   ids: Partial<IdsBase> | null;
   /** Os dados na tela vieram do cache do aparelho (ainda atualizando). */
   doCache: boolean;
+  /** Projetos e áreas (do índice do segundo cérebro ou da aba ProjetosAreas). */
+  projetosAreas: ItemIndice[];
 }
 
 const CHAVE_IDS = 'fc.ids';
@@ -60,6 +68,7 @@ export class App {
       pendentes: 0,
       ids: lerIds(),
       doCache: false,
+      projetosAreas: [],
     };
     window.addEventListener('online', () => void this.reenviar());
   }
@@ -106,11 +115,125 @@ export class App {
     try {
       const base = await this.repo.carregar(this.estado.hoje);
       this.set({ base, carregando: false, doCache: false, precisaEntrarDeNovo: false });
+      void this.prepararProjetosAreas();
       if (this.estado.modo === 'google' && this.estado.ids?.planilha) {
         await this.armazem.gravar(`base:${this.estado.ids.planilha}`, base).catch(() => {});
       }
     } catch (e) {
       this.tratarErro(e);
+    }
+  }
+
+  // ---------- Projetos e áreas (SPEC 4.5 a) ----------
+
+  private chaveIndice() {
+    return `fc.indice:${this.estado.ids?.indice ?? ''}`;
+  }
+
+  private async prepararProjetosAreas() {
+    const base = this.estado.base;
+    if (!base) return;
+    if (this.estado.modo === 'google' && this.estado.ids?.indice) {
+      try {
+        const cache = JSON.parse(localStorage.getItem(this.chaveIndice()) ?? 'null') as ItemIndice[] | null;
+        if (cache) {
+          this.set({ projetosAreas: cache });
+          return;
+        }
+      } catch {
+        // sem cache
+      }
+      await this.atualizarListas();
+      return;
+    }
+    // Sem índice: usa a aba local ProjetosAreas (5.10).
+    const locais: ItemIndice[] = base.projetosAreas
+      .filter((r) => r.ativo !== false && r.nome)
+      .map((r) => ({
+        nome: String(r.nome),
+        tipo: r.tipo === 'projeto' ? 'projeto' : 'area',
+        id: (r.id_indice as string) || null,
+        pastaId: null,
+      }));
+    this.set({ projetosAreas: locais });
+  }
+
+  /** Botão "Atualizar listas": relê o índice. */
+  async atualizarListas() {
+    const base = this.estado.base;
+    const indice = this.estado.ids?.indice;
+    if (!base || !indice || this.estado.modo !== 'google') return this.prepararProjetosAreas();
+    await this.acao(async () => {
+      const itens = await lerIndice(this.google, indice, base.parametros, this.estado.hoje);
+      try {
+        localStorage.setItem(this.chaveIndice(), JSON.stringify(itens));
+      } catch {
+        // sem cache
+      }
+      this.set({ projetosAreas: itens });
+    });
+  }
+
+  // ---------- Lançamentos ----------
+
+  private mudarLancamentos(f: (l: Lancamento[]) => Lancamento[]) {
+    const base = this.estado.base;
+    if (base) this.set({ base: { ...base, lancamentos: f(base.lancamentos) } });
+  }
+
+  /** Salva um lançamento novo (SPEC 10.2). Opcionalmente cria a regra de-para sugerida. */
+  async lancar(n: NovoLancamento, extra: { regraId?: string | null; novaRegra?: Registro | null } = {}): Promise<Lancamento> {
+    const base = this.estado.base;
+    if (!base || !this.repo) throw new Error('Os dados ainda não carregaram');
+    const l = criarLancamento(n, { contas: base.contas, categorias: base.categorias, hoje: this.estado.hoje });
+    this.mudarLancamentos((ls) => [...ls, l]);
+    await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
+    if (extra.novaRegra) {
+      const agora = new Date().toISOString();
+      const regra = { id: novoId('reg'), prioridade: 0, vezes_usada: 1, ativa: true, excluido: false, criado_em: agora, atualizado_em: agora, ...extra.novaRegra };
+      this.set({ base: { ...this.estado.base!, regras: [...this.estado.base!.regras, regra] } });
+      await this.escrever(() => this.repo!.inserir('Regras', [regra]));
+    } else if (extra.regraId) {
+      const r = this.estado.base!.regras.find((x) => x.id === extra.regraId);
+      if (r) {
+        const nova = { ...r, vezes_usada: Number(r.vezes_usada ?? 0) + 1, atualizado_em: new Date().toISOString() };
+        this.set({ base: { ...this.estado.base!, regras: this.estado.base!.regras.map((x) => (x.id === r.id ? nova : x)) } });
+        void this.escrever(() => this.repo!.atualizar('Regras', nova)).catch(() => {});
+      }
+    }
+    return l;
+  }
+
+  async editar(l: Lancamento) {
+    const novo = { ...l, atualizado_em: new Date().toISOString() };
+    this.mudarLancamentos((ls) => ls.map((x) => (x.id === l.id ? novo : x)));
+    await this.escrever(() => this.repo!.atualizar('Lancamentos', novo as unknown as Registro));
+  }
+
+  /** Exclusão lógica (SPEC 5): nunca apaga a linha. */
+  excluir(l: Lancamento) {
+    return this.editar({ ...l, excluido: true });
+  }
+
+  desfazerExclusao(l: Lancamento) {
+    return this.editar({ ...l, excluido: false });
+  }
+
+  async duplicar(l: Lancamento): Promise<Lancamento> {
+    const base = this.estado.base!;
+    const d = duplicarLancamento(l, { contas: base.contas, hoje: this.estado.hoje });
+    this.mudarLancamentos((ls) => [...ls, d]);
+    await this.escrever(() => this.repo!.inserir('Lancamentos', [d as unknown as Registro]));
+    return d;
+  }
+
+  /** Escrita com tratamento de erro: falhas de conexão já ficam na fila. */
+  private async escrever(f: () => Promise<void>) {
+    try {
+      await f();
+    } catch (e) {
+      this.tratarErro(e);
+      throw e;
     }
   }
 
@@ -158,7 +281,7 @@ export class App {
       // nada
     }
     this.repo = null;
-    this.set({ modo: 'demo', ids: null, base: null, precisaEntrarDeNovo: false, pendentes: 0 });
+    this.set({ modo: 'demo', ids: null, base: null, precisaEntrarDeNovo: false, pendentes: 0, projetosAreas: [] });
     void this.iniciar();
   }
 
@@ -209,6 +332,7 @@ export class App {
 
   async escolherIndice() {
     await this.escolherEGravar('planilha', 'indice', 'Escolha a planilha-índice do segundo cérebro');
+    await this.atualizarListas();
   }
 
   private async escolherEGravar(tipo: TipoEscolha, chave: keyof IdsBase, titulo: string) {

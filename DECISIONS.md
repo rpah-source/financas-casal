@@ -30,3 +30,14 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D23 · Status inicial (SPEC 6.1) já aplicado na leitura** de linhas sem status. Linhas do cartão ficam com `data_caixa` = data da compra até o M4 (faturas).
 - **D24 · Fila offline:** só falta de conexão e sessão expirada vão para a fila; outros erros aparecem na hora. Reenvio é idempotente (antes de acrescentar, confere se o id já está na planilha).
 - **D25 · CSP ampliada** para os domínios do Google usados pelo login e pelo Picker (gstatic, content.googleapis.com, fonts do Google para o Picker).
+
+## M2
+- **D26 · Sugestão sem regra:** quando nenhuma Regra casa, o app sugere a categoria se uma palavra do "Onde?" for o nome de uma subcategoria ou categoria (ex.: "farmácia" → Saúde › Farmácia). A tela diz "Sugestão" (e não "Pela regra").
+- **D27 · Desempate das regras:** maior `prioridade`; depois regra específica da conta; depois padrão mais longo; depois `vezes_usada`. Usar uma regra soma 1 em `vezes_usada`.
+- **D28 · "Lembrar para…":** ao escolher a categoria à mão, o app oferece (marcado por padrão) criar uma Regra com o padrão limpo do texto.
+- **D29 · Texto livre:** `dd/mm` usa o ano corrente; se cair mais de 60 dias no futuro, entende como ano passado. "1.850" (ponto + 3 dígitos) é milhar. Aceita também "anteontem" e as palavras literais `pessoa1`/`pessoa2`.
+- **D30 · Conta e pessoa automáticas:** conta = a última usada nessa categoria (senão a última usada); pessoa = a última usada.
+- **D31 · Parcelas no cartão** ficam para o M4 (o texto livre já reconhece `3x`). Casamento com previstos ao salvar (8.1) entra no M3, junto com as recorrências.
+- **D32 · Lista de projetos e áreas** do índice fica em cache no aparelho (atualiza pelo botão "Atualizar listas"). A aba `ProjetosAreas` da planilha é usada quando não há índice. Status vazio no índice conta como ativo.
+- **D33 · Total do filtro no Extrato** soma com sinal (despesa −, receita +, ajuste conforme o sinal); transferências não entram no total.
+- **D34 · Filtros do Extrato** usam seletores nativos do iPhone em forma de chip; ficam salvos no aparelho.

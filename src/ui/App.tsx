@@ -3,6 +3,9 @@ import { App as Controlador } from '../app/estado';
 import { registrarServiceWorker } from '../pwa/registerSW';
 import { BarraInferior, type Aba } from './BarraInferior';
 import { EmBreve } from './EmBreve';
+import { AvisoToast, ContextoToast, type Toast } from './comum';
+import { TelaExtrato } from './TelaExtrato';
+import { TelaLancar } from './TelaLancar';
 import { TelaAjustes } from './TelaAjustes';
 import { TelaSemana } from './TelaSemana';
 import { ContextoApp, useApp } from './useApp';
@@ -30,6 +33,8 @@ function Casca() {
   const [estado, app] = useApp();
   const [aba, setAba] = useState<Aba>(abaDaUrl);
   const [aplicarAtualizacao, setAplicarAtualizacao] = useState<(() => void) | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [anterior, setAnterior] = useState<Aba>('semana');
 
   useEffect(() => {
     const aoMudar = () => setAba(abaDaUrl());
@@ -44,12 +49,14 @@ function Casca() {
   }, [estado.modo, estado.ids?.planilha, estado.carregando]);
 
   function irPara(nova: Aba) {
+    if (nova === 'lancar' && aba !== 'lancar') setAnterior(aba);
     window.location.hash = `/${nova}`;
     setAba(nova);
     window.scrollTo(0, 0);
   }
 
   return (
+    <ContextoToast.Provider value={setToast}>
     <div class="app">
       {estado.modo === 'demo' && (
         <div class="faixa-demo" role="status">Modo demonstração · dados fictícios</div>
@@ -78,12 +85,14 @@ function Casca() {
       )}
       <main class="conteudo">
         {aba === 'semana' && <TelaSemana irParaAjustes={() => irPara('ajustes')} />}
-        {aba === 'extrato' && <EmBreve titulo="Extrato" marco="M2" texto="Aqui vai aparecer a lista de todos os lançamentos, com busca e filtros por mês, pessoa, conta e categoria." />}
-        {aba === 'lancar' && <EmBreve titulo="Lançar" marco="M2" texto="Aqui você vai lançar um gasto em até 4 toques: valor, onde, com o que pagou e quem." />}
+        {aba === 'extrato' && <TelaExtrato />}
+        {aba === 'lancar' && <TelaLancar aoTerminar={() => irPara(anterior)} />}
         {aba === 'fotografia' && <EmBreve titulo="Fotografia do mês" marco="M6" texto="Aqui vai aparecer o retrato do mês: quanto entra, quanto sai em cada tipo de gasto e como o mês deve fechar." />}
         {aba === 'ajustes' && <TelaAjustes />}
       </main>
+      <AvisoToast toast={toast} fechar={() => setToast(null)} />
       <BarraInferior atual={aba} aoEscolher={irPara} />
     </div>
+    </ContextoToast.Provider>
   );
 }

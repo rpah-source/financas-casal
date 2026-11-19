@@ -19,6 +19,15 @@ export function planilhaDemo(hoje: string): Partial<Record<NomeAba, Celula[][]>>
     Contas: tab('Contas', d.contas.map((c) => ({ ...c, apelidos: c.apelidos.join(', ') }))),
     Lancamentos: tab('Lancamentos', d.lancamentos),
     Categorias: tab('Categorias', categoriasPadrao()),
+    ProjetosAreas: tab('ProjetosAreas', [
+      { nome: 'Reforma da varanda (exemplo)', tipo: 'projeto', id_indice: 'P-0001', ativo: true },
+      { nome: 'Pets (exemplo)', tipo: 'area', ativo: true },
+      { nome: 'Saúde (exemplo)', tipo: 'area', ativo: true },
+    ]),
+    Regras: tab('Regras', [
+      { id: 'reg_demo_1', padrao: 'ifood', descricao: 'iFood', categoria: 'Alimentação', subcategoria: 'Delivery', prioridade: 0, vezes_usada: 3, ativa: true },
+      { id: 'reg_demo_2', padrao: 'uber', descricao: 'Uber', categoria: 'Transporte', subcategoria: 'Aplicativo', prioridade: 0, vezes_usada: 2, ativa: true },
+    ]),
     Parametros: tab('Parametros', [
       { chave: 'pessoa1.nome', valor: d.pessoas.pessoa1, vigente_desde: '2000-01-01' },
       { chave: 'pessoa2.nome', valor: d.pessoas.pessoa2, vigente_desde: '2000-01-01' },

@@ -1,5 +1,15 @@
 # Changelog
 
+## M2 · Lançar e Extrato — 19/11/2026
+**O que dá para testar no celular**
+- Botão **+**: digite o valor no teclado do app (6890 = R$ 68,90), escreva "Onde?" e toque em **Salvar**. A categoria aparece sozinha ("Pela regra" ou "Sugestão"); conta e pessoa vêm da última vez.
+- **Escrever tudo de uma vez**: `45 farmácia azul ontem` preenche valor, conta e data (o ditado por voz do teclado funciona).
+- Depois de salvar: aviso **"Lançado · Desfazer"** por 5 segundos.
+- Ao escolher a categoria à mão: opção **"Lembrar para…"** cria uma regra para as próximas vezes.
+- **Extrato**: mês, busca, filtros (pessoa, conta, categoria, natureza, status, origem, não conciliados, sem categoria), total do filtro, lista por dia.
+- Na lista: tocar abre o detalhe para editar; deslizar ← exclui (com desfazer); deslizar → duplica para hoje.
+- **Mais detalhes › Projeto ou área**: vem da sua planilha-índice (Ajustes › Atualizar listas).
+
 ## M1.1 · Login Google ligado — 19/11/2026
 - Client ID, chave do Picker (restrita ao site) e número do projeto configurados em `src/config.ts`. O botão **Ajustes › Entrar com Google** passa a aparecer.
 

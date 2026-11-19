@@ -99,6 +99,18 @@ export function TelaAjustes() {
               aoTocar={rodar(() => app.escolherIndice())}
               ocupado={ocupado}
             />
+            {ids.indice && (
+              <>
+                <p class="discreto">
+                  {estado.projetosAreas.length
+                    ? `${estado.projetosAreas.filter((x) => x.tipo === 'projeto').length} projetos e ${estado.projetosAreas.filter((x) => x.tipo === 'area').length} áreas ativos.`
+                    : 'Listas ainda não lidas.'}
+                </p>
+                <button type="button" class="botao-secundario" disabled={ocupado} onClick={rodar(() => app.atualizarListas())}>
+                  Atualizar listas
+                </button>
+              </>
+            )}
           </div>
 
           <div class="cartao">

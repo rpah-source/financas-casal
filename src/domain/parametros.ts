@@ -45,3 +45,10 @@ export const PARAMETROS_PADRAO: Array<[string, string]> = [
 ];
 
 export const VIGENCIA_INICIAL = '2000-01-01';
+
+export function lerPessoas(parametros: Parametro[], data: DataISO): { pessoa1: string; pessoa2: string } {
+  return {
+    pessoa1: lerParametro(parametros, 'pessoa1.nome', data) || 'Pessoa 1',
+    pessoa2: lerParametro(parametros, 'pessoa2.nome', data) || 'Pessoa 2',
+  };
+}

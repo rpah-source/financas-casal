@@ -15,10 +15,15 @@ Vite + TypeScript + Preact, sem back-end. Testes com Vitest. Deploy no GitHub Pa
 ## Camadas
 ```
 src/ui/        telas (Preact)              → só apresentação
+src/app/       estado do app (modo demo/Google, carregar, assistente)
 src/domain/    regras puras, testadas      → sem UI, sem Google
-src/repo/      Repositório: Memory | Sheets (M1)
-src/storage/   DriveStorage: Memory | GoogleDrive (M1)
-src/demo/      dados fictícios do modo demonstração
+               schema.ts = abas e colunas (fonte única); linhas.ts = leitura tolerante;
+               base.ts = referências por nome, padrões, problemas
+src/repo/      FonteTabelas (MemoriaTabelas | SheetsTabelas) + RepositorioPlanilha + fila offline
+src/storage/   DriveStorage: MemoryStorage | GoogleDriveStorage
+src/google/    login (GIS), Picker, cliente HTTP
+src/bootstrap/ criação da planilha base
+src/demo/      dados fictícios do modo demonstração (viram uma planilha em memória)
 src/pwa/       registro do service worker
 src/config.ts  Client ID e chave de API (públicos)
 ```
@@ -36,4 +41,5 @@ Fundo `#F6F5F1`, cartões brancos com borda `#E6E3DB`, destaque `#2E6B5A`, aten�
 - `npm test` — testes (Vitest)
 - `npm run build` — checagem de tipos + build em `dist/`
 - `npm run dev` — servidor local
+- `scripts/e2e-google-falso.cjs` — teste de ponta a ponta com Google simulado (instruções no topo do arquivo)
 - `node scripts/gerar-icones.mjs` (com `NODE_PATH=$(npm root -g)`) — regerar ícones PNG

@@ -8,12 +8,12 @@ import preact from '@preact/preset-vite';
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://accounts.google.com https://apis.google.com",
-  "style-src 'self' 'unsafe-inline' https://accounts.google.com",
-  "img-src 'self' data: blob: https://*.googleusercontent.com https://ssl.gstatic.com https://www.gstatic.com",
-  "font-src 'self'",
-  "connect-src 'self' https://sheets.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com",
-  "frame-src https://accounts.google.com https://docs.google.com https://drive.google.com",
+  "script-src 'self' https://accounts.google.com https://apis.google.com https://www.gstatic.com https://ssl.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://ssl.gstatic.com https://www.gstatic.com https://drive-thirdparty.googleusercontent.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "connect-src 'self' https://sheets.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://content.googleapis.com",
+  "frame-src https://accounts.google.com https://docs.google.com https://drive.google.com https://content.googleapis.com https://apis.google.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

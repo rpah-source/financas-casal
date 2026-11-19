@@ -31,9 +31,9 @@ Quando sair uma versão nova, aparece no topo **"Atualização disponível · Re
 
 ---
 
-## Parte 3 · Google Cloud: permitir o login (15–20 min) — *só a partir do marco M1*
+## Parte 3 · Google Cloud: permitir o login (15–20 min) — *já dá para fazer (marco M1)*
 
-> O Claude vai avisar quando for a hora. Os nomes dos botões podem variar um pouco; o Google muda a tela de vez em quando.
+> Os nomes dos botões podem variar um pouco; o Google muda a tela de vez em quando. Se travar, mande um print para o Claude.
 
 1. Abra **console.cloud.google.com** no Safari e entre com a sua conta Google. Aceite os termos, se pedir.
 2. **Criar o projeto:** no topo, toque no seletor de projeto › **Novo projeto** › nome: `Finanças do Casal` › **Criar**. Confira que ele ficou selecionado no topo.
@@ -67,7 +67,7 @@ Cole no chat com o Claude:
 
 Esses três valores **não são senhas**: eles aparecem no navegador de qualquer forma e só funcionam no endereço do seu site. O Claude coloca no arquivo `src/config.ts` e publica uma versão nova.
 
-## Parte 5 · Primeiro acesso com seus dados — *a partir do marco M1*
+## Parte 5 · Primeiro acesso com seus dados — *depois que o Claude confirmar a Parte 4*
 
 1. Abra o app pelo ícone › **Ajustes** › **Entrar com Google**.
 2. O Google vai mostrar avisos. É normal:

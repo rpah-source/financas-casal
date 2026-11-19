@@ -173,3 +173,64 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 4px 12px rgba(46, 107, 90, 0.3);
 }
 .item-mais.ativo .icone { box-shadow: 0 0 0 3px var(--destaque-claro); }
+
+/* M1 */
+.faixa-atencao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 16px;
+  background: var(--atencao-fundo);
+  color: var(--atencao);
+  font-size: 14px;
+}
+.faixa-atencao .botao-link { color: var(--atencao); text-decoration: underline; }
+.faixa-discreta {
+  text-align: center;
+  font-size: 13px;
+  padding: 4px 16px;
+  color: var(--texto-suave);
+  background: #ecebe5;
+}
+
+.titulo-cartao { font-size: 16px; font-weight: 650; margin: 0 0 8px; }
+
+.botao-primario,
+.botao-secundario {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  margin: 8px 0;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.botao-primario { background: var(--destaque); color: #fff; border: 0; }
+.botao-secundario { background: #fff; color: var(--destaque); border: 1px solid var(--destaque); }
+button:disabled { opacity: 0.55; cursor: default; }
+a.botao-link { display: inline-flex; align-items: center; text-decoration: none; }
+
+.passos { padding-left: 20px; margin: 0 0 8px; }
+.passos li { margin-bottom: 6px; }
+
+.item-config {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--borda);
+}
+.item-config:first-of-type { border-top: 0; }
+.item-config p { margin: 0; }
+.item-rotulo { font-weight: 600; }
+
+.lista-links { list-style: none; padding: 0; margin: 0 0 4px; }
+.lista-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--destaque); font-weight: 600; }
+
+.lista-problemas { list-style: none; padding: 0; margin: 8px 0 0; }
+.lista-problemas li { border-top: 1px solid var(--borda); padding: 8px 0; }
+.lista-problemas p { margin: 0 0 2px; }
+
+.cartao.atencao-suave { background: var(--atencao-fundo); border-color: #efd9ad; color: #5c3a00; }

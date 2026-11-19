@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { hojeSP } from '../domain/dates';
-import { gerarDadosDemo } from '../demo/demoData';
+import { App as Controlador } from '../app/estado';
 import { registrarServiceWorker } from '../pwa/registerSW';
 import { BarraInferior, type Aba } from './BarraInferior';
-import { TelaSemana } from './TelaSemana';
 import { EmBreve } from './EmBreve';
+import { TelaAjustes } from './TelaAjustes';
+import { TelaSemana } from './TelaSemana';
+import { ContextoApp, useApp } from './useApp';
 
 const ABAS: Aba[] = ['semana', 'extrato', 'lancar', 'fotografia', 'ajustes'];
 
@@ -14,13 +15,21 @@ function abaDaUrl(): Aba {
 }
 
 export function App() {
+  const controlador = useMemo(() => new Controlador(), []);
+  useEffect(() => {
+    void controlador.iniciar();
+  }, [controlador]);
+  return (
+    <ContextoApp.Provider value={controlador}>
+      <Casca />
+    </ContextoApp.Provider>
+  );
+}
+
+function Casca() {
+  const [estado, app] = useApp();
   const [aba, setAba] = useState<Aba>(abaDaUrl);
   const [aplicarAtualizacao, setAplicarAtualizacao] = useState<(() => void) | null>(null);
-
-  // M0: sem login Google ainda, então o app roda sempre em modo demonstração
-  // (SPEC 4.2: "ativado por ?demo=1 ou quando não há login").
-  const hoje = hojeSP();
-  const dados = useMemo(() => gerarDadosDemo(hoje), [hoje]);
 
   useEffect(() => {
     const aoMudar = () => setAba(abaDaUrl());
@@ -29,27 +38,50 @@ export function App() {
     return () => window.removeEventListener('hashchange', aoMudar);
   }, []);
 
-  const irPara = (nova: Aba) => {
+  // Sem planilha configurada, o primeiro lugar a visitar é Ajustes (SPEC 4.4, item 5).
+  useEffect(() => {
+    if (estado.modo === 'google' && !estado.ids?.planilha && !estado.carregando) irPara('ajustes');
+  }, [estado.modo, estado.ids?.planilha, estado.carregando]);
+
+  function irPara(nova: Aba) {
     window.location.hash = `/${nova}`;
     setAba(nova);
     window.scrollTo(0, 0);
-  };
+  }
 
   return (
     <div class="app">
-      <div class="faixa-demo" role="status">Modo demonstração · dados fictícios</div>
+      {estado.modo === 'demo' && (
+        <div class="faixa-demo" role="status">Modo demonstração · dados fictícios</div>
+      )}
       {aplicarAtualizacao && (
         <div class="faixa-atualizacao" role="status">
           <span>Atualização disponível</span>
           <button type="button" class="botao-link" onClick={aplicarAtualizacao}>Recarregar</button>
         </div>
       )}
+      {estado.precisaEntrarDeNovo && (
+        <div class="faixa-atencao" role="status">
+          <span>A sessão do Google expirou.</span>
+          <button type="button" class="botao-link" onClick={() => app.entrar()}>Entrar de novo</button>
+        </div>
+      )}
+      {estado.aviso && (
+        <div class="faixa-atencao" role="status">
+          <span>{estado.aviso}</span>
+        </div>
+      )}
+      {estado.pendentes > 0 && (
+        <div class="faixa-discreta" role="status">
+          {estado.pendentes === 1 ? '1 item aguardando envio' : `${estado.pendentes} itens aguardando envio`}
+        </div>
+      )}
       <main class="conteudo">
-        {aba === 'semana' && <TelaSemana dados={dados} hoje={hoje} />}
+        {aba === 'semana' && <TelaSemana irParaAjustes={() => irPara('ajustes')} />}
         {aba === 'extrato' && <EmBreve titulo="Extrato" marco="M2" texto="Aqui vai aparecer a lista de todos os lançamentos, com busca e filtros por mês, pessoa, conta e categoria." />}
         {aba === 'lancar' && <EmBreve titulo="Lançar" marco="M2" texto="Aqui você vai lançar um gasto em até 4 toques: valor, onde, com o que pagou e quem." />}
         {aba === 'fotografia' && <EmBreve titulo="Fotografia do mês" marco="M6" texto="Aqui vai aparecer o retrato do mês: quanto entra, quanto sai em cada tipo de gasto e como o mês deve fechar." />}
-        {aba === 'ajustes' && <EmBreve titulo="Ajustes" marco="M1 e M7" texto="Aqui você vai entrar com o Google, escolher as pastas do Drive e configurar contas, cartões, salário e a semanada." />}
+        {aba === 'ajustes' && <TelaAjustes />}
       </main>
       <BarraInferior atual={aba} aoEscolher={irPara} />
     </div>

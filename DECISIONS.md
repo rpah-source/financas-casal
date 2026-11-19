@@ -15,3 +15,18 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D10 · Valores arredondados no destaque:** o "Ainda podemos gastar" e o "por dia" arredondam **para baixo** (nunca mostram mais do que existe); "acima da semanada" arredonda para cima. A conta detalhada mostra os centavos.
 - **D11 · Cortes de semana inválidos** em `semana.cortes` voltam ao padrão `1-8,9-15,16-22,23-fim`, sem travar (princípio 5).
 - **D12 · Publicação:** o GitHub Actions publica a cada push na `main` (SPEC 4.1). O trabalho de cada marco é feito num ramo próprio e chega à `main` com a autorização do usuário.
+
+## M1
+- **D13 · Leitura sem formatação:** a planilha é lida com `UNFORMATTED_VALUE` (números chegam como números, sem ambiguidade de vírgula) e datas como texto formatado. Escrita sempre com `RAW` (o Google não reinterpreta "2026-11-19" nem "68.9").
+- **D14 · Números digitados como texto:** se houver vírgula, ela é o decimal e os pontos são milhar (`1.234,56`). Sem vírgula, o ponto é decimal (`68.9`).
+- **D15 · Referência por nome** (ex.: `conta_id` = "Conta Azul") compara sem diferenciar maiúsculas e acentos. Apelidos não valem como referência (só no texto livre, M2). Ambíguo ou inexistente → "Linhas com problema".
+- **D16 · Colunas extras** que o usuário criar são preservadas nas regravações. Colunas da SPEC que faltarem são acrescentadas no fim do cabeçalho; abas que faltarem são criadas.
+- **D17 · `excluido`, `criado_em` e `atualizado_em`** em todas as abas com id (Contas, Lancamentos, Recorrencias, Faturas, Parcelamentos, Dividas, Regras, CaixaEntrada, Importacoes). Categorias, Parametros e ProjetosAreas não têm id (são listas de configuração).
+- **D18 · id duplicado** (linha copiada à mão): a primeira mantém o id, as outras ganham um id novo.
+- **D19 · Linhas sem id gravadas de volta pela posição** lida no mesmo carregamento (não há id para relocalizar). Linhas com id sempre são relocalizadas relendo a coluna `id`.
+- **D20 · Parâmetros do bootstrap** valem desde `2000-01-01`, para qualquer data passada usar o padrão. Pasta de entrada e índice escolhidos depois entram como linha nova, vigente a partir de hoje.
+- **D21 · `semanada.valor` começa em 0** na planilha nova: a tela Semana explica que falta definir (na carga inicial ou em Ajustes, M7). A pasta `Comprovantes/` só é criada quando o primeiro comprovante for anexado (M7).
+- **D22 · Token do Google guardado no aparelho só até expirar (~1 h)**, para o app abrir já com os dados. Os dados também ficam em cache no IndexedDB e aparecem na hora; a atualização vem em seguida.
+- **D23 · Status inicial (SPEC 6.1) já aplicado na leitura** de linhas sem status. Linhas do cartão ficam com `data_caixa` = data da compra até o M4 (faturas).
+- **D24 · Fila offline:** só falta de conexão e sessão expirada vão para a fila; outros erros aparecem na hora. Reenvio é idempotente (antes de acrescentar, confere se o id já está na planilha).
+- **D25 · CSP ampliada** para os domínios do Google usados pelo login e pelo Picker (gstatic, content.googleapis.com, fonts do Google para o Picker).

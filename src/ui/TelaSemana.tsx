@@ -2,11 +2,38 @@ import { useState } from 'preact/hooks';
 import { ddmm, nomeMesCurto, partesData } from '../domain/dates';
 import { formatarBRL } from '../domain/money';
 import { gastoDaSemana, resumoSemana } from '../domain/semana';
-import type { DadosDemo } from '../demo/demoData';
+import { lerParametro, lerParametroNumero } from '../domain/parametros';
+import { CORTES_PADRAO } from '../domain/semana';
+import { useApp } from './useApp';
 
-export function TelaSemana({ dados, hoje }: { dados: DadosDemo; hoje: string }) {
+export function TelaSemana({ irParaAjustes }: { irParaAjustes: () => void }) {
   const [mostrarConta, setMostrarConta] = useState(false);
-  const r = resumoSemana(dados.lancamentos, hoje, dados.semanada, dados.cortes);
+  const [{ base, hoje, carregando, modo, ids }] = useApp();
+
+  if (!base) {
+    if (modo === 'google' && !ids?.planilha && !carregando) {
+      return (
+        <section>
+          <h1 class="titulo-tela">Semana</h1>
+          <div class="cartao">
+            <p>Falta escolher onde ficam os seus dados no Google Drive.</p>
+            <button type="button" class="botao-primario" onClick={irParaAjustes}>Ir para Ajustes</button>
+          </div>
+        </section>
+      );
+    }
+    return (
+      <section aria-busy="true">
+        <h1 class="titulo-tela">Semana</h1>
+        <div class="cartao destaque"><p class="destaque-rotulo">Carregando…</p></div>
+      </section>
+    );
+  }
+
+  const semanada = lerParametroNumero(base.parametros, 'semanada.valor', hoje, 0);
+  const cortes = lerParametro(base.parametros, 'semana.cortes', hoje) || CORTES_PADRAO;
+  const dados = { contas: base.contas, lancamentos: base.lancamentos };
+  const r = resumoSemana(dados.lancamentos, hoje, semanada, cortes);
   const ini = partesData(r.semana.inicio);
   const fim = partesData(r.semana.fim);
   const acima = r.aindaPodemos < 0;
@@ -22,6 +49,16 @@ export function TelaSemana({ dados, hoje }: { dados: DadosDemo; hoje: string }) 
       <h1 class="titulo-tela">
         Semana {r.semana.numero} · {ini.dia} a {fim.dia} {nomeMesCurto(fim.mes)}
       </h1>
+
+      {semanada <= 0 && (
+        <div class="cartao">
+          <p><strong>A semanada ainda não foi definida.</strong></p>
+          <p class="discreto">
+            Ela é o valor por semana para os gastos do dia a dia. Pode ser definida na carga inicial da
+            planilha (aba Parametros, chave semanada.valor) ou em Ajustes, numa próxima versão.
+          </p>
+        </div>
+      )}
 
       <div class={`cartao destaque${acima ? ' atencao' : ''}`}>
         {acima ? (
@@ -64,7 +101,7 @@ export function TelaSemana({ dados, hoje }: { dados: DadosDemo; hoje: string }) 
         {mostrarConta && (
           <div class="conta-passo-a-passo">
             <p>
-              <strong>Semanada:</strong> {formatarBRL(r.semanada)} (valor fixo definido nos Ajustes).
+              <strong>Semanada:</strong> {formatarBRL(r.semanada)} (valor por semana definido nos Ajustes).
             </p>
             <p>
               <strong>Gastos do dia a dia de {ddmm(r.semana.inicio)} a {ddmm(r.semana.fim)}:</strong>

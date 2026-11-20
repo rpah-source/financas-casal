@@ -6,11 +6,10 @@ import type { FonteTabelas } from '../repo/fonte';
 import type { DriveStorage } from '../storage/drive';
 
 /**
- * Primeira execução (SPEC 4.4): cria a planilha base e a pasta
- * "Faturas e extratos" dentro da pasta de Finanças escolhida no Picker.
+ * Primeira execução (SPEC 4.4): cria a planilha base dentro da pasta de
+ * Finanças escolhida no Picker. Não cria subpastas (DECISIONS D68).
  */
 export const NOME_PLANILHA = 'Finanças do Casal — Base';
-export const NOME_PASTA_FATURAS = 'Faturas e extratos';
 
 export interface IdsBase {
   planilha: string;
@@ -27,7 +26,9 @@ export async function criarBase(p: {
   pastaFinancasId: string;
 }): Promise<IdsBase> {
   const planilha = await p.storage.criarPlanilha(NOME_PLANILHA, p.pastaFinancasId);
-  const pastaFaturas = await p.storage.criarPasta(NOME_PASTA_FATURAS, p.pastaFinancasId);
+  // Sem subpastas (o segundo cérebro usa 3 níveis fixos, DECISIONS D68): faturas e
+  // comprovantes vão para a própria pasta de Finanças até o usuário escolher outra em Ajustes.
+  const pastaFaturas = p.pastaFinancasId;
   const fonte = p.fontePara(planilha);
 
   await fonte.garantirEstrutura(ABAS, {});

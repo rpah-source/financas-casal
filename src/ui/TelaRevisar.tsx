@@ -7,6 +7,7 @@ import { lerParametroNumero } from '../domain/parametros';
 import { padraoSugerido } from '../domain/regras';
 import type { Lancamento, RegistroGenerico } from '../domain/types';
 import { EscolherCategoria, useToast } from './comum';
+import type { PreviaCaixa } from '../domain/importacao/caixa';
 import { nomeFatura } from './Fatura';
 import { useApp } from './useApp';
 
@@ -152,7 +153,7 @@ export function TelaRevisar({ voltar, importar }: { voltar: () => void; importar
           <ul class="lista-lancamentos">
             {novos.map((item) => <ItemNovo key={String(item.id)} item={item} ocupado={ocupado}
               categorizar={() => setCategorizando(item)}
-              aceitar={() => rodar(() => app.aceitarCaixa(item), 'Lançado')}
+              aceitar={(aj) => rodar(() => app.aceitarCaixa(item, aj), 'Lançado')}
               descartar={() => rodar(() => app.descartarCaixa(item), 'Descartado')} />)}
           </ul>
         </>
@@ -220,28 +221,44 @@ export function TelaRevisar({ voltar, importar }: { voltar: () => void; importar
   );
 }
 
-function ItemNovo({ item, ocupado, categorizar, aceitar, descartar }: { item: RegistroGenerico; ocupado: boolean; categorizar: () => void; aceitar: () => void; descartar: () => void }) {
-  const [, app] = useApp();
+function ItemNovo({ item, ocupado, categorizar, aceitar, descartar }: { item: RegistroGenerico; ocupado: boolean; categorizar: () => void; aceitar: (ajustes?: Partial<PreviaCaixa>) => void; descartar: () => void }) {
+  const [{ base }, app] = useApp();
   const p = app.previaCaixa(item);
   const transf = p.tipo === 'transferencia';
+  const faltaOrigem = transf && !p.contaId;
+  const faltaDestino = transf && !p.contaDestinoId;
+  const [outra, setOutra] = useState('');
   const sinal = p.tipo === 'receita' ? '+' : p.tipo === 'despesa' ? '−' : '';
+  const nome = (id: string | null) => base!.contas.find((c) => c.id === id)?.nome ?? '?';
+  const ajustes: Partial<PreviaCaixa> = faltaOrigem ? { contaId: outra } : faltaDestino ? { contaDestinoId: outra } : {};
   return (
     <li class="item-novo">
       <div class="textos-linha">
         <span class="descricao-linha">{p.descricao}</span>
         <span class="detalhe-linha">{ddmm(p.data)} · {String(item.texto)}</span>
         {transf ? (
-          <span class="detalhe-linha">Transferência (pagamento de fatura ou entre contas)</span>
+          faltaOrigem || faltaDestino ? (
+            <label class="detalhe-linha">
+              Transferência {faltaOrigem ? `para ${nome(p.contaDestinoId)}, vinda de:` : `de ${nome(p.contaId)} para:`}{' '}
+              <select value={outra} onChange={(e) => setOutra((e.target as HTMLSelectElement).value)}>
+                <option value="">escolha</option>
+                {base!.contas.filter((c) => c.ativa !== false && c.id !== (p.contaId ?? p.contaDestinoId)).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </label>
+          ) : (
+            <span class="detalhe-linha">Transferência: {nome(p.contaId)} → {nome(p.contaDestinoId)}</span>
+          )
         ) : (
           <button type="button" class={`chip chip-pequeno${!p.categoria || p.categoria === 'Sem categoria' ? ' chip-alerta' : ''}`} onClick={categorizar}>
             {p.categoria && p.categoria !== 'Sem categoria' ? `${p.categoria}${p.subcategoria ? ` › ${p.subcategoria}` : ''}` : 'Sem categoria · escolher'}
           </button>
         )}
+        {p.emprestimo && <span class="detalhe-linha">Empréstimo recebido: entra no saldo, não conta como renda.</span>}
       </div>
       <div class="acoes-novo">
         <span class={`valor-linha${p.tipo === 'receita' ? ' entrada' : ''}`}>{sinal}{formatarBRL(p.valor ?? 0)}</span>
         <div>
-          <button type="button" class="botao-icone" aria-label={`Aceitar ${p.descricao}`} disabled={ocupado} onClick={aceitar}>✓</button>
+          <button type="button" class="botao-icone" aria-label={`Aceitar ${p.descricao}`} disabled={ocupado || ((faltaOrigem || faltaDestino) && !outra)} onClick={() => aceitar(ajustes)}>✓</button>
           <button type="button" class="botao-icone" aria-label={`Descartar ${p.descricao}`} disabled={ocupado} onClick={descartar}>✕</button>
         </div>
       </div>
@@ -253,9 +270,19 @@ function ItemExterno({ item, ocupado, rodar }: { item: RegistroGenerico; ocupado
   const [{ base }, app] = useApp();
   const p = app.previaCaixa(item);
   const [contaId, setContaId] = useState(p.contaId ?? '');
+  const parecido = app.lancamentoParecido(item, contaId || null);
   return (
     <div class="cartao">
       <p><strong>{String(item.texto)}</strong> <span class="discreto">({String(item.fonte || 'externo')})</span></p>
+      {parecido && (
+        <div class="cartao pergunta">
+          <p>Parece ser: <strong>{parecido.descricao || parecido.categoria}</strong> · {formatarBRL(parecido.valor)} · {ddmm(parecido.data_competencia)}, já lançado.</p>
+          <div class="linha-botoes">
+            <button type="button" class="botao-primario" disabled={ocupado} onClick={() => rodar(() => app.vincularCaixa(item, parecido), item.doc ? 'Comprovante ligado ao lançamento' : 'Marcado como já lançado')}>É esse</button>
+            <span class="discreto">Se não for, use Aceitar abaixo.</span>
+          </div>
+        </div>
+      )}
       <p class="discreto">
         Entendi: {p.valor ? formatarBRL(p.valor) : 'sem valor'} · {ddmm(p.data)} · {p.descricao}
         {p.categoria ? ` · ${p.categoria}${p.subcategoria ? ` › ${p.subcategoria}` : ''}` : ''}

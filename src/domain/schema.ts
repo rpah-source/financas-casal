@@ -35,6 +35,8 @@ export interface Coluna {
   obrigatorio?: boolean;
   /** Valor aplicado quando a célula vem vazia. */
   padrao?: string | number | boolean;
+  /** Sinônimos aceitos em enums (ex.: "pendente" → "novo"). */
+  sinonimos?: Record<string, string>;
 }
 
 export interface Aba {
@@ -152,7 +154,7 @@ export const ABAS: Aba[] = [
     colunas: [
       t('id'), { nome: 'recebido_em', tipo: 'timestamp' }, t('fonte'), t('texto', { obrigatorio: true }),
       n('valor'), d('data'), t('conta'), t('categoria'), t('subcategoria'), t('quem'), t('doc'),
-      e('status', ENUMS.statusCaixa, { padrao: 'novo' }), t('lancamento_id'), t('tipo_sugerido'),
+      e('status', ENUMS.statusCaixa, { padrao: 'novo', sinonimos: { pendente: 'novo', nova: 'novo', aceita: 'aceito', descartada: 'descartado' } }), t('lancamento_id'), t('tipo_sugerido'),
       t('descricao_original'), t('chave_dedupe'), t('importacao_id'), t('conta_id'), ...meta(),
     ],
   },

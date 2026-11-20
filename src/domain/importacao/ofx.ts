@@ -24,7 +24,7 @@ export function lerOFX(texto: string): ArquivoLido {
     const b = m[1];
     const d = data(tag(b, 'DTPOSTED'));
     const valor = Number((tag(b, 'TRNAMT') ?? '').replace(',', '.'));
-    const memo = tag(b, 'MEMO') || tag(b, 'NAME') || '';
+    const memo = limparMemo(tag(b, 'MEMO') || tag(b, 'NAME') || '');
     if (!d || !Number.isFinite(valor) || valor === 0) {
       ignoradas++;
       continue;
@@ -51,4 +51,18 @@ export function lerOFX(texto: string): ArquivoLido {
     linhas,
     ignoradas,
   };
+}
+
+/**
+ * Tira do texto dados que não precisam ir para a planilha: CPF mascarado,
+ * agência e número de conta (ex.: extrato da conta do Nubank).
+ */
+export function limparMemo(memo: string): string {
+  return memo
+    .replace(/\s*-?\s*[•*x]{3}\.\d{3}\.\d{3}-[•*x]{2}/gi, '')
+    .replace(/\s*Ag[eê]ncia:\s*\d+\s*Conta:\s*[\d.-]+/gi, '')
+    .replace(/\s*\(\d{3,4}\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s*-\s*$/, '')
+    .trim();
 }

@@ -32,6 +32,8 @@ export interface PreviaCaixa {
   subcategoria: string | null;
   quem: Pessoa;
   regraId: string | null;
+  /** Empréstimo recebido: entra no saldo, mas não é renda (SPEC 7). */
+  emprestimo: boolean;
 }
 
 function acharConta(texto: string, contas: Conta[]): Conta | undefined {
@@ -54,11 +56,18 @@ export function previaCaixa(item: RegistroGenerico, ctx: ContextoCaixa): PreviaC
   const conta = contaItem ?? ativas.find((c) => c.id === parse?.contaId);
   const descBase = importado ? extrairParcela(texto).descricao : parse?.descricao || texto;
   const sug = aplicarRegras(descBase, ctx.regras, ctx.categorias, conta?.id);
-  let tipo = (String(item.tipo_sugerido || '') as TipoLancamento) || 'despesa';
+  const sugerido = String(item.tipo_sugerido || '');
+  const emprestimo = sugerido === 'emprestimo';
+  const entrada = sugerido === 'transferencia_entrada';
+  let tipo = (entrada ? 'transferencia' : emprestimo ? 'receita' : sugerido || 'despesa') as TipoLancamento;
   if (!['despesa', 'receita', 'transferencia', 'ajuste'].includes(tipo)) tipo = 'despesa';
   let contaId = conta?.id ?? null;
   let contaDestinoId: string | null = null;
-  if (tipo === 'transferencia' && conta) {
+  if (entrada && conta) {
+    // Dinheiro que chegou de outra conta própria (ou do cartão, no "Pix no cartão").
+    contaDestinoId = conta.id;
+    contaId = destinoTransferencia({ descricao: texto, valor: Number(item.valor) }, conta.id, ctx.contas);
+  } else if (tipo === 'transferencia' && conta) {
     if (conta.tipo === 'cartao') {
       // Pagamento visto na fatura: sai da conta que paga o cartão.
       contaId = conta.conta_pagamento_id ?? null;
@@ -83,17 +92,19 @@ export function previaCaixa(item: RegistroGenerico, ctx: ContextoCaixa): PreviaC
     contaId,
     contaDestinoId,
     descricao: (sug.fonte === 'regra' && sug.descricao) || descBase,
-    categoria: (item.categoria as string) || sug.categoria || (tipo === 'despesa' ? 'Sem categoria' : null),
-    subcategoria: (item.subcategoria as string) || sug.subcategoria || null,
+    categoria: tipo === 'transferencia' ? null : (item.categoria as string) || sug.categoria || (tipo === 'despesa' ? 'Sem categoria' : null),
+    subcategoria: tipo === 'transferencia' ? null : (item.subcategoria as string) || sug.subcategoria || null,
     quem,
     regraId: sug.regraId,
+    emprestimo,
   };
 }
 
 export function lancamentoDaCaixa(item: RegistroGenerico, ctx: ContextoCaixa, ajustes: Partial<PreviaCaixa> = {}): Lancamento {
   const p = { ...previaCaixa(item, ctx), ...ajustes };
   if (!p.valor || p.valor <= 0) throw new Error('Falta o valor');
-  if (!p.contaId) throw new Error('Escolha a conta');
+  if (!p.contaId) throw new Error(p.tipo === 'transferencia' ? 'Escolha de qual conta veio a transferência' : 'Escolha a conta');
+  if (p.tipo === 'transferencia' && !p.contaDestinoId) throw new Error('Escolha para qual conta foi a transferência');
   const importado = item.fonte === 'importacao';
   const l = criarLancamento(
     {
@@ -120,6 +131,7 @@ export function lancamentoDaCaixa(item: RegistroGenerico, ctx: ContextoCaixa, aj
     parcela_num: parcela?.num ?? null,
     parcela_total: parcela?.total ?? null,
     docs: (item.doc as string) || null,
+    excluir_da_analise: p.emprestimo || l.excluir_da_analise,
   };
 }
 

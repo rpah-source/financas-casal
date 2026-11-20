@@ -28,12 +28,42 @@ export const PERFIS_GENERICOS: PerfilCSV[] = [
   { nome: 'Genérico (lançamento/histórico)', data: 'data', descricao: 'historico', valor: 'valor', sinal: 'negativo_saida' },
 ];
 
+/**
+ * Separa o CSV em linhas e células. Aceita aspas com quebra de linha dentro
+ * (o Santander põe "Pix enviado\nNome" numa célula só) e delimitador `;`, `,` ou tab.
+ * A quebra de linha dentro da célula vira espaço.
+ */
 export function separarCSV(texto: string): string[][] {
-  const linhas = texto.replace(/^﻿/, '').replace(/\r/g, '').split('\n').filter((l) => l.trim());
-  if (!linhas.length) return [];
-  const cab = linhas[0];
-  const delim = [';', ',', '\t'].sort((a, b) => contar(cab, b) - contar(cab, a))[0];
-  return linhas.map((l) => dividir(l, delim));
+  const t = texto.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const amostra = t.split('\n').slice(0, 30);
+  const delim = [';', ',', '\t'].sort((a, b) => Math.max(...amostra.map((l) => contar(l, b))) - Math.max(...amostra.map((l) => contar(l, a))))[0];
+  const linhas: string[][] = [];
+  let celula = '';
+  let linha: string[] = [];
+  let aspas = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (ch === '"') {
+      if (aspas && t[i + 1] === '"') {
+        celula += '"';
+        i++;
+      } else aspas = !aspas;
+    } else if (ch === delim && !aspas) {
+      linha.push(celula.trim());
+      celula = '';
+    } else if (ch === '\n') {
+      if (aspas) celula += ' ';
+      else {
+        linha.push(celula.trim());
+        if (linha.some((c) => c)) linhas.push(linha);
+        linha = [];
+        celula = '';
+      }
+    } else celula += ch;
+  }
+  linha.push(celula.trim());
+  if (linha.some((c) => c)) linhas.push(linha);
+  return linhas.map((l) => l.map((c) => c.replace(/\s+/g, ' ')));
 }
 
 function contar(s: string, c: string) {
@@ -46,24 +76,16 @@ function contar(s: string, c: string) {
   return n;
 }
 
-function dividir(linha: string, delim: string): string[] {
-  const r: string[] = [];
-  let atual = '';
-  let aspas = false;
-  for (let i = 0; i < linha.length; i++) {
-    const ch = linha[i];
-    if (ch === '"') {
-      if (aspas && linha[i + 1] === '"') {
-        atual += '"';
-        i++;
-      } else aspas = !aspas;
-    } else if (ch === delim && !aspas) {
-      r.push(atual.trim());
-      atual = '';
-    } else atual += ch;
+/**
+ * Pula o "preâmbulo" (nome, agência, período…) que alguns bancos põem antes
+ * da tabela: a tabela começa na primeira linha que tem um perfil.
+ */
+export function acharTabela(linhas: string[][], salvos: PerfilCSV[] = []): { linhas: string[][]; perfil: PerfilCSV | null } {
+  for (let i = 0; i < Math.min(linhas.length, 40); i++) {
+    const perfil = detectarPerfil(linhas[i], salvos);
+    if (perfil) return { linhas: linhas.slice(i), perfil };
   }
-  r.push(atual.trim());
-  return r;
+  return { linhas, perfil: null };
 }
 
 const chave = (s: string) => normalizar(s).replace(/[^a-z0-9]/g, '');
@@ -77,7 +99,8 @@ function indice(cabecalho: string[], col: string | number | undefined): number {
 /** Acha um perfil que serve para o cabeçalho (perfis salvos primeiro). */
 export function detectarPerfil(cabecalho: string[], salvos: PerfilCSV[] = []): PerfilCSV | null {
   for (const p of [...salvos, ...PERFIS_GENERICOS]) {
-    if ([p.data, p.descricao, p.valor].every((c) => indice(cabecalho, c) >= 0 && indice(cabecalho, c) < cabecalho.length)) return p;
+    const exigidas = [p.data, p.descricao, p.valor, ...(p.identificador !== undefined ? [p.identificador] : [])];
+    if (exigidas.every((c) => indice(cabecalho, c) >= 0 && indice(cabecalho, c) < cabecalho.length)) return p;
   }
   return null;
 }

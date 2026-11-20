@@ -1,0 +1,30 @@
+Extrato de conta corrente
+Nome;Alex
+Agência;0000
+Conta;00.000000.0
+Período do extrato;01/11/2026 a 20/11/2026
+
+Lançamentos:
+Data;Descrição;Valor;Saldo
+18/11/2026;"Pix enviado
+Sam exemplo da silva";-450,00;17,85
+18/11/2026;"Credito liberado para pix
+Pix no cartao final 2222";450,00;467,85
+18/11/2026;"Pix recebido
+Alex exemplo";40,00;17,85
+16/11/2026;"Prest. de emprest. financiamento
+Parc 001/024 000000000000";-1000,00;-22,15
+13/11/2026;"Pix enviado
+Alex exemplo";-500,00;977,85
+13/11/2026;"Pix enviado
+Nu pagamentos s a";-571,60;1477,85
+13/11/2026;Contratacao credito consignado;2000,00;2049,45
+10/11/2026;"Pix enviado
+Loja exemplo ltda";-49,45;49,45
+05/11/2026;Remuneracao aplicacao automatica;0,04;98,90
+05/11/2026;"Debito aut. fat.cartao master card
+Final 1111";-1010,54;98,86
+03/11/2026;"Pix enviado
+Distribuidora de energia exemplo";-150,00;1109,40
+03/11/2026;"Credito de salario
+Empresa exemplo";1259,40;1259,40

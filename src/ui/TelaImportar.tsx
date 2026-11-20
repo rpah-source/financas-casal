@@ -201,7 +201,7 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
             Escolher outro arquivo
           </button>
           <p class="discreto">
-            O original vai para a pasta "Faturas e extratos" no seu Drive. Nada entra no extrato sem você confirmar, a não ser o que já batia
+            O original vai para a pasta de faturas e comprovantes no seu Drive, com o nome "AAAA-MM – Fatura (ou Extrato) – conta". Nada entra no extrato sem você confirmar, a não ser o que já batia
             com um lançamento existente.
           </p>
         </>

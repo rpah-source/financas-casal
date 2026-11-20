@@ -82,3 +82,12 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D65 · "Aceitar todos"** grava os novos em lote (uma escrita); transferências são aceitas uma a uma (precisam achar a fatura que quitam). Itens sem conta ou valor ficam para o usuário completar.
 - **D66 · "Manter"** em "Lançados no app, mas não estão na fatura" só esconde o aviso neste aparelho (não muda o lançamento).
 - **D67 · @types/node** como dependência de desenvolvimento, só para os testes lerem os arquivos de `samples/`.
+
+## Ajustes do segundo cérebro (20/11/2026)
+- **D68 · Sem subpastas no Drive:** a pasta de faturas (`ids.pasta_faturas`, hoje "Finanças Pessoais - Comprovantes", fora da pasta de Finanças) recebe os arquivos direto, sem `AAAA/`. O bootstrap não cria mais "Faturas e extratos": a pasta de faturas começa igual à de Finanças e pode ser trocada em Ajustes › Segundo cérebro. Substitui a tabela de destinos de SPEC 4.5 b.
+- **D69 · Nomes:** fatura `AAAA-MM – Fatura – <conta>` (mês do vencimento), extrato `AAAA-MM – Extrato – <conta>` (mês do fim do período). Comprovante sem mudança.
+- **D70 · Destino de comprovante (M7):** sem projeto/área → direto na pasta de faturas e comprovantes; com outro projeto/área → pasta de Entrada com `[financas] destino: <nome exato da pasta no Índice>`. Contrato completo em `docs/integracao-segundo-cerebro.md`.
+- **D71 · CaixaEntrada externa:** `status` aceita `pendente` como sinônimo de `novo` (o app regrava `novo`). Item externo com mesmo valor, mesma conta e data ±janela de um lançamento existente mostra "Parece ser… É esse?", que liga o comprovante (`doc`) ao lançamento em vez de duplicar.
+- **D72 · Extratos reais:** CSV com preâmbulo e quebra de linha dentro das aspas; "Debito aut. fat.cartao" = pagamento de fatura; "Pix no cartao final NNNN" = transferência do cartão (pelo final) para a conta; "Contratacao credito consignado" = empréstimo recebido (`tipo_sugerido = emprestimo`, fora da análise); Pix para nome jurídico de banco próprio (ex.: "Nu pagamentos") ou para o titular = transferência. Transferência que chega usa `tipo_sugerido = transferencia_entrada`. Quando o app não sabe a outra conta, a Revisar pede para escolher.
+- **D73 · Texto de extrato sem CPF/agência/conta:** o leitor de OFX remove CPF mascarado, agência e número de conta do MEMO.
+- **D74 · Parâmetros duplicados:** linhas genéricas `pessoa1.nome`/`pessoa2.nome` removidas da planilha do usuário (mesma vigência das reais). Em empate de vigência continua valendo a linha mais abaixo.

@@ -54,7 +54,7 @@ export function TelaAjustes() {
           <ol class="passos">
             <li>
               <strong>Escolha a pasta da sua área Finanças</strong> (do sistema PARA). O app cria ali a planilha
-              "Finanças do Casal — Base" e a pasta "Faturas e extratos".
+              "Finanças do Casal — Base".
             </li>
           </ol>
           <button type="button" class="botao-primario" disabled={ocupado} onClick={rodar(() => app.criarPlanilhaNaPasta())}>
@@ -82,6 +82,14 @@ export function TelaAjustes() {
               rotulo="Pasta de Finanças"
               valor={ids.pasta_financas ? 'Escolhida' : 'Não informada'}
               link={ids.pasta_financas ? urlPasta(ids.pasta_financas) : undefined}
+            />
+            <ItemConfig
+              rotulo="Pasta de faturas e comprovantes"
+              descricao="Onde o app guarda faturas, extratos e comprovantes sem área específica (sem subpastas)."
+              valor={ids.pasta_faturas ? 'Escolhida' : 'Ainda não'}
+              acao={ids.pasta_faturas ? 'Trocar' : 'Escolher'}
+              aoTocar={rodar(() => app.escolherPastaFaturas())}
+              ocupado={ocupado}
             />
             <ItemConfig
               rotulo="Pasta de Entrada"
@@ -121,7 +129,7 @@ export function TelaAjustes() {
               </li>
               {ids.pasta_faturas && (
                 <li>
-                  <a href={urlPasta(ids.pasta_faturas)} target="_blank" rel="noopener">Abrir a pasta de faturas</a>
+                  <a href={urlPasta(ids.pasta_faturas)} target="_blank" rel="noopener">Abrir a pasta de faturas e comprovantes</a>
                 </li>
               )}
             </ul>

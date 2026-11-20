@@ -20,10 +20,8 @@ describe('bootstrap da planilha (SPEC 4.4)', () => {
       },
     });
 
-    expect(storage.arquivos.map((a) => [a.nome, a.paiId])).toEqual([
-      [NOME_PLANILHA, 'pasta_fin'],
-      ['Faturas e extratos', 'pasta_fin'],
-    ]);
+    expect(storage.arquivos.map((a) => [a.nome, a.paiId])).toEqual([[NOME_PLANILHA, 'pasta_fin']]);
+    expect(ids.pasta_faturas).toBe('pasta_fin');
     const fonte = planilhas.get(ids.planilha)!;
     expect(Object.keys(fonte.abas).sort()).toEqual([...NOMES_ABAS].sort());
 

@@ -1,6 +1,6 @@
 import { novoId } from './ids';
 import type { Aba, Coluna, NomeAba } from './schema';
-import { lerBool, lerData, lerEnum, lerNumero, lerTexto, vazio, type Celula } from './valores';
+import { lerBool, lerData, lerEnum, lerNumero, lerTexto, normalizar, vazio, type Celula } from './valores';
 
 /**
  * Leitura genérica de uma aba (SPEC 5 e 11b): localiza as colunas pelo
@@ -127,7 +127,8 @@ function converter(col: Coluna, cel: Celula): ValorRegistro {
       break;
     }
     case 'enum': {
-      const v = lerEnum(cel, col.valores ?? []);
+      const sin = col.sinonimos?.[normalizar(String(cel ?? ''))];
+      const v = sin ?? lerEnum(cel, col.valores ?? []);
       if (v === null && !vazio(cel)) {
         throw new ErroLinha(`Valor inválido em ${rotulo}: "${cel}" (aceitos: ${(col.valores ?? []).join(', ')})`);
       }

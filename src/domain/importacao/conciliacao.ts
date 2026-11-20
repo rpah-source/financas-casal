@@ -44,8 +44,24 @@ export interface ResultadoConciliacao {
 }
 
 const RE_PAGAMENTO_FATURA =
-  /pagamento\s+(de\s+)?fatura|pag\.?\s*fatura|pagto\.?\s*(de\s+)?cart|pgto\.?\s*fatura|deb(ito)?\.?\s+autom(atico)?\.?\s+de\s+fatura|pagamento\s+recebido|pagamento\s+cart[aã]o/i;
+  /pagamento\s+(de\s+)?fatura|pag\.?\s*fatura|pagto\.?\s*(de\s+)?cart|pgto\.?\s*fatura|d[eé]b(ito)?\.?\s+aut(om)?(atico)?\.?\s+(de\s+)?fat|fat\.?\s*cart[aã]o|pagamento\s+recebido|pagamento\s+cart[aã]o/i;
 const RE_TRANSFERENCIA = /\b(transf\w*|ted|doc|pix)\b/i;
+/** "Pix no cartão final 1234": o cartão de crédito mandou dinheiro para a conta. */
+const RE_PIX_NO_CARTAO = /pix\s+no\s+cart[aã]o\s+final\s+(\d{4})/i;
+/** Empréstimo recebido (SPEC 7): entra no saldo, mas não é renda. */
+const RE_EMPRESTIMO = /contrata[cç][aã]o\s+(de\s+)?cr[eé]dito|empr[eé]stimo\s+(liberado|contratado|recebido)|cr[eé]dito\s+consignado\s+liberado/i;
+
+/** Nomes jurídicos de bancos → marca, para achar a conta própria no texto do extrato. */
+const BANCOS: Array<[RegExp, string]> = [
+  [/\bnu\s+pagamentos(\s+s\.?\s*a\.?)?\b/gi, 'nubank'],
+  [/\bnu\s+financeira\b/gi, 'nubank'],
+  [/\b(banco|bco)\s+santander(\s+\(brasil\))?(\s+s\.?\s*a\.?)?/gi, 'santander'],
+];
+export function textoComMarcas(texto: string): string {
+  let t = texto;
+  for (const [re, marca] of BANCOS) t = t.replace(re, marca);
+  return normalizar(t);
+}
 
 /** Pagamento de fatura reconhecido pelo texto (SPEC 7). */
 export const ehPagamentoFatura = (texto: string) => RE_PAGAMENTO_FATURA.test(texto);
@@ -54,23 +70,30 @@ export const ehPagamentoFatura = (texto: string) => RE_PAGAMENTO_FATURA.test(tex
  * Tipo sugerido para a linha (SPEC 7): pagamento de fatura e Pix/TED entre
  * contas próprias viram transferência, nunca despesa.
  */
-export function tipoSugerido(l: LinhaImportada, conta: Conta, contas: Conta[], pessoas?: { pessoa1: string; pessoa2: string }): TipoLancamento {
-  if (ehPagamentoFatura(l.descricao)) return 'transferencia';
-  if (conta.tipo !== 'cartao' && RE_TRANSFERENCIA.test(l.descricao)) {
-    const t = ` ${normalizar(l.descricao)} `;
+export type TipoSugerido = TipoLancamento | 'transferencia_entrada' | 'emprestimo';
+
+export function tipoSugerido(l: LinhaImportada, conta: Conta, contas: Conta[], pessoas?: { pessoa1: string; pessoa2: string }): TipoSugerido {
+  if (conta.tipo === 'cartao') {
+    if (l.sentido === 'entrada' && ehPagamentoFatura(l.descricao)) return 'transferencia';
+    return l.sentido === 'saida' ? 'despesa' : 'receita';
+  }
+  const entrada = l.sentido === 'entrada';
+  if (ehPagamentoFatura(l.descricao) && !entrada) return 'transferencia';
+  if (entrada && RE_PIX_NO_CARTAO.test(l.descricao)) return 'transferencia_entrada';
+  if (entrada && RE_EMPRESTIMO.test(l.descricao)) return 'emprestimo';
+  if (RE_TRANSFERENCIA.test(l.descricao)) {
+    const t = ` ${textoComMarcas(l.descricao)} `;
     const outras = contas.filter((c) => c.id !== conta.id && c.ativa !== false);
     const nomes = [
       ...outras.flatMap((c) => [c.nome, ...c.apelidos]),
       ...contas.map((c) => c.titular ?? ''),
       pessoas?.pessoa1 ?? '',
-      pessoas?.pessoa2 ?? '',
     ]
       .map((n) => normalizar(n))
       .filter((n) => n.length >= 3);
-    if (nomes.some((n) => t.includes(` ${n} `) || t.includes(` ${n.split(' ')[0]} `))) return 'transferencia';
+    if (nomes.some((n) => t.includes(` ${n} `) || t.includes(` ${n.split(' ')[0]} `))) return entrada ? 'transferencia_entrada' : 'transferencia';
   }
-  if (conta.tipo === 'cartao') return l.sentido === 'saida' ? 'despesa' : 'receita';
-  return l.sentido === 'saida' ? 'despesa' : 'receita';
+  return entrada ? 'receita' : 'despesa';
 }
 
 /** Pessoa pelo final do cartão (`finais_cartao`: "1234:pessoa1,5678:pessoa2"). */
@@ -103,18 +126,25 @@ export function destinoTransferencia(
   contas: Conta[],
 ): string | null {
   const outras = contas.filter((c) => c.id !== contaId && c.ativa !== false);
-  if (ehPagamentoFatura(l.descricao)) {
-    const t = normalizar(l.descricao);
-    const cartoes = outras.filter((c) => c.tipo === 'cartao');
-    const porNome = cartoes.find((c) => [c.nome, ...c.apelidos].some((n) => t.includes(normalizar(n))));
-    if (porNome) return porNome.id;
-    const pagosPorEsta = cartoes.filter((c) => c.conta_pagamento_id === contaId);
-    if (pagosPorEsta.length === 1) return pagosPorEsta[0].id;
-    return pagosPorEsta[0]?.id ?? cartoes[0]?.id ?? null;
+  const t = ` ${textoComMarcas(l.descricao)} `;
+  const final = l.descricao.match(RE_PIX_NO_CARTAO)?.[1];
+  if (final) {
+    const porFinal = outras.find((c) => c.tipo === 'cartao' && String(c.finais_cartao ?? '').split(',').some((x) => x.trim().startsWith(final)));
+    if (porFinal) return porFinal.id;
   }
-  const t = ` ${normalizar(l.descricao)} `;
-  const porNome = outras.find((c) => [c.nome, ...c.apelidos].some((n) => n && t.includes(` ${normalizar(n)} `)));
-  return porNome?.id ?? null;
+  const porNome = (lista: Conta[]) =>
+    lista
+      .flatMap((c) => [c.nome, ...c.apelidos].filter(Boolean).map((n) => ({ c, n: normalizar(n) })))
+      .sort((a, b) => b.n.length - a.n.length)
+      .find(({ n }) => t.includes(` ${n} `))?.c;
+  if (ehPagamentoFatura(l.descricao) || final) {
+    const cartoes = outras.filter((c) => c.tipo === 'cartao');
+    const achado = porNome(cartoes);
+    if (achado) return achado.id;
+    const pagosPorEsta = cartoes.filter((c) => c.conta_pagamento_id === contaId);
+    return pagosPorEsta[0]?.id ?? (cartoes.length === 1 ? cartoes[0].id : null);
+  }
+  return porNome(outras)?.id ?? null;
 }
 
 export function conciliar(linhas: LinhaImportada[], ctx: ContextoConciliacao): ResultadoConciliacao {
@@ -144,13 +174,16 @@ export function conciliar(linhas: LinhaImportada[], ctx: ContextoConciliacao): R
     // Candidatos compatíveis (mesmo tipo de movimento).
     const compativel = (c: Lancamento) => {
       if (usados.has(c.id)) return false;
-      if (tipo === 'transferencia') {
+      if (tipo === 'transferencia' || tipo === 'transferencia_entrada') {
         if (c.tipo !== 'transferencia') return false;
-        return cartao ? c.conta_destino_id === conta.id : c.conta_id === conta.id || c.conta_destino_id === conta.id;
+        if (cartao) return c.conta_destino_id === conta.id;
+        return tipo === 'transferencia' ? c.conta_id === conta.id : c.conta_destino_id === conta.id;
       }
+      if (tipo === 'emprestimo') return c.tipo === 'receita';
       return c.tipo === tipo;
     };
-    const mesmaConta = (c: Lancamento) => (tipo === 'transferencia' ? true : c.conta_id === conta.id);
+    const transf = tipo === 'transferencia' || tipo === 'transferencia_entrada';
+    const mesmaConta = (c: Lancamento) => (transf ? true : c.conta_id === conta.id);
     const valorIgual = (c: Lancamento) => Math.abs(c.valor - l.valor) < 0.005;
     const dias = (c: Lancamento) => Math.abs(diffDias(c.data_competencia, l.data));
     const descParecida = (c: Lancamento) =>
@@ -172,7 +205,7 @@ export function conciliar(linhas: LinhaImportada[], ctx: ContextoConciliacao): R
         if (l.parcela && c.parcela_num === l.parcela.num && c.parcela_total === l.parcela.total && valorIgual(c)) {
           return similaridade(l.descricao, c.descricao ?? '') >= 0.5 || descParecida(c);
         }
-        if (tipo === 'transferencia') return valorIgual(c) && dias(c) <= ctx.janelaDias;
+        if (transf) return valorIgual(c) && dias(c) <= ctx.janelaDias;
         if (valorIgual(c) && dias(c) <= 2 && descParecida(c)) return true;
         if (c.status === 'previsto' && c.recorrencia_id) {
           const rec = ctx.recorrencias.find((r) => r.id === c.recorrencia_id);
@@ -198,7 +231,7 @@ export function conciliar(linhas: LinhaImportada[], ctx: ContextoConciliacao): R
       .sort(porProximidade)[0];
     if (sugestao) usados.add(sugestao.id);
 
-    const sug = tipo === 'transferencia' ? null : aplicarRegras(l.descricao, ctx.regras, ctx.categorias, conta.id);
+    const sug = transf ? null : aplicarRegras(l.descricao, ctx.regras, ctx.categorias, conta.id);
     resultado.caixa.push({
       id: novoId('cxe'),
       recebido_em: agora,

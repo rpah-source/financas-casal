@@ -1,5 +1,13 @@
 # Changelog
 
+## M5.1 · Extratos reais e regras do segundo cérebro — 20/11/2026
+- Arquivos importados vão direto para "Finanças Pessoais - Comprovantes", sem pasta por ano, com o nome "AAAA-MM – Fatura (ou Extrato) – conta".
+- Extrato CSV do Santander e OFX da conta do Nubank lidos do jeito que os bancos mandam.
+- Reconhece sozinho: pagamento de fatura, Pix entre contas próprias, "Pix no cartão" e empréstimo recebido (não conta como renda).
+- Na Revisar, transferência sem a outra conta conhecida pede para escolher; item da caixa de entrada que já foi lançado mostra "Parece ser… É esse?" e liga o comprovante, sem duplicar.
+- Ajustes › Segundo cérebro: escolher a pasta de faturas e comprovantes.
+- Contrato para quem escreve na planilha: `docs/integracao-segundo-cerebro.md`.
+
 ## M5 · Importar faturas e extratos — 20/11/2026
 **O que dá para testar no celular**
 - **Extrato › Importar** (ou Revisar › Trazer outra fatura ou extrato): escolha a conta/cartão e um arquivo **OFX** ou **CSV** do app Arquivos, ou **cole o texto** da fatura (ex.: copiado do PDF do Santander).

@@ -1,7 +1,7 @@
 import { criarBase, type IdsBase } from '../bootstrap/bootstrap';
 import { googleConfigurado } from '../config';
 import type { Base } from '../domain/base';
-import { hojeSP } from '../domain/dates';
+import { diffDias, hojeSP } from '../domain/dates';
 import { lerParametro, lerParametroNumero, lerPessoas } from '../domain/parametros';
 import { planilhaDemo } from '../demo/planilhaDemo';
 import { SessaoGoogle } from '../google/auth';
@@ -24,11 +24,12 @@ import { novoId } from '../domain/ids';
 import { lerIndice } from '../google/indice';
 import type { ArquivoLido } from '../domain/importacao/tipos';
 import { lerOFX } from '../domain/importacao/ofx';
-import { detectarPerfil, lerCSV, separarCSV, type PerfilCSV } from '../domain/importacao/csv';
+import { acharTabela, detectarPerfil, lerCSV, separarCSV, type PerfilCSV } from '../domain/importacao/csv';
 import { lerTexto } from '../domain/importacao/texto';
 import { atualizarComImportado, conciliar } from '../domain/importacao/conciliacao';
 import { lancamentoDaCaixa, previaCaixa, type PreviaCaixa } from '../domain/importacao/caixa';
 import { regraCasa } from '../domain/regras';
+import { nomeArquivoImportado } from '../domain/arquivos';
 import type { Conta, RegistroGenerico } from '../domain/types';
 import { MemoriaTabelas } from '../repo/memoria';
 import { RepositorioPlanilha } from '../repo/repositorio';
@@ -511,10 +512,10 @@ export class App {
     const nome = p.nome.toLowerCase();
     if (nome.endsWith('.ofx') || /<OFX>/i.test(p.texto)) return { tipo: 'lido', lido: lerOFX(p.texto) };
     if (nome.endsWith('.csv')) {
-      const linhas = separarCSV(p.texto);
-      const perfil = p.perfil ?? detectarPerfil(linhas[0] ?? [], this.perfisCSV());
-      if (!perfil) return { tipo: 'csv-sem-perfil', linhas };
-      return { tipo: 'lido', lido: lerCSV(linhas, perfil), perfil };
+      const todas = separarCSV(p.texto);
+      const achada = p.perfil ? { linhas: todas.slice(Math.max(0, todas.findIndex((l) => detectarPerfil(l, [p.perfil!])))), perfil: p.perfil } : acharTabela(todas, this.perfisCSV());
+      if (!achada.perfil) return { tipo: 'csv-sem-perfil', linhas: todas };
+      return { tipo: 'lido', lido: lerCSV(achada.linhas, achada.perfil), perfil: achada.perfil };
     }
     return { tipo: 'lido', lido: lerTexto(p.texto, { tipoConta: p.tipoConta, hoje: this.estado.hoje }) };
   }
@@ -546,18 +547,16 @@ export class App {
     return lerParametro(this.estado.base.parametros, 'importacao.conta_externa', this.estado.hoje, contaExterna);
   }
 
-  /** Guarda o arquivo original no Drive, com o nome padrão (SPEC 4.5 b). */
+  /**
+   * Guarda o arquivo original no Drive (DECISIONS D68): direto na pasta de
+   * faturas e comprovantes (sem subpasta por ano — o segundo cérebro usa
+   * 3 níveis fixos) e com o nome "AAAA-MM – Fatura|Extrato – <Conta>".
+   */
   private async guardarOriginal(p: { conteudo: Blob; ext: string; mimeType: string; conta: Conta; competencia?: string; periodo?: string }) {
     const pasta = this.estado.ids?.pasta_faturas ?? (this.estado.modo === 'demo' ? 'pasta_demo_faturas' : null);
     if (!pasta) return null;
-    const ano = this.estado.hoje.slice(0, 4);
-    const storage = this.storage();
-    const pastaAno = await storage.obterOuCriarPasta(ano, pasta);
-    const nome =
-      p.conta.tipo === 'cartao'
-        ? `${this.estado.hoje} – Fatura – ${p.conta.nome} – ${p.competencia ?? this.estado.hoje.slice(0, 7)}.${p.ext}`
-        : `${this.estado.hoje} – Extrato – ${p.conta.nome} – ${p.periodo ?? this.estado.hoje.slice(0, 7)}.${p.ext}`;
-    return storage.enviarArquivo({ nome, mimeType: p.mimeType, conteudo: p.conteudo, paiId: pastaAno });
+    const nome = nomeArquivoImportado({ conta: p.conta, competencia: p.competencia, periodo: p.periodo, hoje: this.estado.hoje, ext: p.ext });
+    return this.storage().enviarArquivo({ nome, mimeType: p.mimeType, conteudo: p.conteudo, paiId: pasta });
   }
 
   /**
@@ -595,7 +594,7 @@ export class App {
     try {
       const enviado = await this.guardarOriginal({
         conteudo: p.original.conteudo, ext: p.original.ext, mimeType: p.original.mimeType, conta,
-        competencia: fatura?.competencia, periodo: p.lido?.fim?.slice(0, 7),
+        competencia: fatura?.competencia, periodo: (p.lido?.fim ?? [...linhas.map((l) => l.data)].sort().at(-1))?.slice(0, 7),
       });
       doc = enviado?.url ?? null;
     } catch {
@@ -697,7 +696,7 @@ export class App {
     let faturas = [...base.faturas];
     const faturasNovas: Fatura[] = [];
     for (const item of itens) {
-      if (item.tipo_sugerido === 'transferencia') {
+      if (String(item.tipo_sugerido).startsWith('transferencia')) {
         transferencias.push(item);
         continue;
       }
@@ -758,6 +757,32 @@ export class App {
     await this.atualizarCaixa([{ ...item, status: 'aceito', lancamento_id: c.id }]);
   }
 
+  /**
+   * Item da caixa de entrada (ex.: comprovante lido pelo segundo cérebro) que
+   * talvez já esteja lançado: mesmo valor, mesma conta e data ±janela.
+   */
+  lancamentoParecido(item: RegistroGenerico, contaId: string | null): Lancamento | null {
+    const base = this.estado.base!;
+    const p = previaCaixa(item, this.contextoCaixa());
+    const conta = contaId ?? p.contaId;
+    if (!p.valor) return null;
+    const janela = lerParametroNumero(base.parametros, 'conciliacao.janela_dias', this.estado.hoje, 5);
+    return (
+      base.lancamentos.find(
+        (l) =>
+          !l.excluido && l.status !== 'cancelado' && (!conta || l.conta_id === conta) &&
+          Math.abs(l.valor - p.valor!) < 0.005 && Math.abs(diffDias(l.data_competencia, p.data)) <= janela,
+      ) ?? null
+    );
+  }
+
+  /** "É esse": liga o item (e o comprovante dele) a um lançamento existente. */
+  async vincularCaixa(item: RegistroGenerico, l: Lancamento) {
+    const doc = String(item.doc ?? '').trim();
+    if (doc && !(l.docs ?? '').includes(doc)) await this.editar({ ...l, docs: [l.docs, doc].filter(Boolean).join(' ') });
+    await this.atualizarCaixa([{ ...item, status: 'aceito', lancamento_id: l.id }]);
+  }
+
   /** "Não, é outro": o item passa para a lista de novos. */
   rejeitarSugestao(item: RegistroGenerico) {
     return this.atualizarCaixa([{ ...item, lancamento_id: '' }]);
@@ -784,7 +809,7 @@ export class App {
     await this.escrever(() => this.repo!.inserir('Regras', [regra]));
     // Aplica a regra nova aos itens pendentes que ela pega.
     const pendentes = this.estado.base!.caixaEntrada.filter(
-      (c) => c.status === 'novo' && !c.lancamento_id && regraCasa(r.padrao, String(c.texto ?? '')) && c.tipo_sugerido !== 'transferencia',
+      (c) => c.status === 'novo' && !c.lancamento_id && regraCasa(r.padrao, String(c.texto ?? '')) && !String(c.tipo_sugerido).startsWith('transferencia'),
     );
     await this.atualizarCaixa(pendentes.map((c) => ({ ...c, categoria: r.categoria, subcategoria: r.subcategoria ?? '' })));
   }
@@ -880,6 +905,10 @@ export class App {
   /** Passos 2 e 3 (podem ser feitos depois, em Ajustes). */
   async escolherPastaEntrada() {
     await this.escolherEGravar('pasta', 'pasta_entrada', 'Escolha a pasta de Entrada do seu sistema PARA');
+  }
+
+  async escolherPastaFaturas() {
+    await this.escolherEGravar('pasta', 'pasta_faturas', 'Escolha a pasta para faturas, extratos e comprovantes');
   }
 
   async escolherIndice() {

@@ -1,6 +1,7 @@
 # Changelog
 
 ## M5.1 · Extratos reais e regras do segundo cérebro — 20/11/2026
+- Previsto semanal (ex.: faxina) conta a semana a partir do dia previsto (±3 dias), sem pular quando o mês tem duas quintas na mesma "semana".
 - Arquivos importados vão direto para "Finanças Pessoais - Comprovantes", sem pasta por ano, com o nome "AAAA-MM – Fatura (ou Extrato) – conta".
 - Extrato CSV do Santander e OFX da conta do Nubank lidos do jeito que os bancos mandam.
 - Reconhece sozinho: pagamento de fatura, Pix entre contas próprias, "Pix no cartão" e empréstimo recebido (não conta como renda).

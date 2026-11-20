@@ -63,6 +63,15 @@ describe('recorrências → previstos', () => {
     expect(gerarPrevistos({ recorrencias: [faxina], lancamentos: primeira, contas, hoje: HOJE })).toEqual([]);
   });
 
+  it('semana com duas quintas (1–8) gera as duas; previsto movido de dia não duplica', () => {
+    const quinta = { ...faxina, dia_semana: 4, inicio: '2026-12-01' };
+    const novos = gerarPrevistos({ recorrencias: [quinta], lancamentos: [], contas, hoje: '2026-12-02' });
+    expect(novos.filter((l) => l.data_competencia.startsWith('2027-01')).map((l) => l.data_competencia).slice(0, 2)).toEqual(['2027-01-07', '2027-01-14']);
+    expect(novos.some((l) => l.data_competencia === '2026-12-03')).toBe(true);
+    const movido = novos.map((l) => (l.data_competencia === '2026-12-03' ? { ...l, data_competencia: '2026-12-05', status: 'realizado' as const } : l));
+    expect(gerarPrevistos({ recorrencias: [quinta], lancamentos: movido, contas, hoje: '2026-12-02' })).toEqual([]);
+  });
+
   it('mensal respeita início e fim', () => {
     const rec = { ...faxina, frequencia: 'mensal', dia_mes: 'ultimo_util', inicio: '2026-12-01', fim: '2027-01-31' };
     expect(datasDaRecorrencia(rec, '2026-11-01', '2027-03-31')).toEqual(['2026-12-31', '2027-01-29']);

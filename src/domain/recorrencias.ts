@@ -1,6 +1,5 @@
-import { diasNoMes, montarData, partesData, somarDias } from './dates';
+import { diasNoMes, diffDias, montarData, partesData, somarDias } from './dates';
 import { diaDaSemana, ehDiaUtil } from './holidays-br';
-import { semanaDe } from './semana';
 import type { Conta, DataISO, Lancamento, Natureza, Pessoa, RegistroGenerico, TipoLancamento } from './types';
 import { novoId } from './ids';
 
@@ -69,12 +68,13 @@ export function janelaGeracao(hoje: DataISO): [DataISO, DataISO] {
   return [montarData(ano, mes, 1), montarData(anoFim, mesFim, diasNoMes(anoFim, mesFim))];
 }
 
-/** Mesma "vaga" da recorrência: mesma semana (semanal, pelos cortes) ou mesmo mês (mensal). */
-function mesmaVaga(rec: RegistroGenerico, a: DataISO, b: DataISO, cortes?: string): boolean {
-  if (rec.frequencia === 'semanal') {
-    if (a.slice(0, 7) !== b.slice(0, 7)) return false;
-    return semanaDe(a, cortes).numero === semanaDe(b, cortes).numero;
-  }
+/**
+ * Mesma "vaga" da recorrência: semanal = a até 3 dias da data prevista (a
+ * faxina pode mudar de dia ou o Pix sair dias depois; os cortes do mês não
+ * servem, porque a semana 1–8 pode ter duas quintas); mensal = mesmo mês.
+ */
+function mesmaVaga(rec: RegistroGenerico, a: DataISO, b: DataISO): boolean {
+  if (rec.frequencia === 'semanal') return Math.abs(diffDias(a, b)) <= 3;
   return a.slice(0, 7) === b.slice(0, 7);
 }
 
@@ -94,7 +94,7 @@ export function gerarPrevistos(p: {
     // Idempotência: conta tudo que não foi excluído (em qualquer status, inclusive cancelado).
     const existentes = [...p.lancamentos, ...novos].filter((l) => l.recorrencia_id === rec.id && !l.excluido);
     for (const data of datasDaRecorrencia(rec, de, ate)) {
-      if (existentes.some((l) => mesmaVaga(rec, l.data_competencia, data, p.cortes))) continue;
+      if (existentes.some((l) => mesmaVaga(rec, l.data_competencia, data))) continue;
       const tipo = (rec.tipo as TipoLancamento) || 'despesa';
       const l: Lancamento = {
         id: novoId('lan'),

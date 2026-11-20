@@ -1,20 +1,24 @@
 import { useState } from 'preact/hooks';
-import { abertoNoCartao, proximoCiclo } from '../domain/cartao';
+import { proximoCiclo } from '../domain/cartao';
+import { faturasEmAberto, pagamentosDaFatura, totalFatura, type Fatura } from '../domain/faturas';
+import { lerNumero } from '../domain/valores';
+import { FolhaFatura, ResumoFatura } from './Fatura';
 import { previstosVencidos } from '../domain/casamento';
 import { ddmm, diasNoMes, diffDias, montarData, nomeMesCurto, nomeMesLongo, partesData, somarDias } from '../domain/dates';
 import { fotografiaDoMes } from '../domain/fotografia';
 import { formatarBRL } from '../domain/money';
-import { lerParametro, lerParametroNumero, lerPessoas } from '../domain/parametros';
+import { lerParametro, lerParametroNumero } from '../domain/parametros';
 import { proximoCredito, reservado, saldoConta } from '../domain/saldos';
 import { CORTES_PADRAO, gastoDaSemana, resumoSemana } from '../domain/semana';
 import type { Lancamento } from '../domain/types';
-import { PontoStatus } from './comum';
+import { PontoStatus, useToast } from './comum';
 import { useApp } from './useApp';
 
 const brl0 = (v: number) => formatarBRL(v, { semCentavos: true });
 
 export function TelaSemana({ irPara }: { irPara: (aba: 'ajustes' | 'revisar' | 'fotografia') => void }) {
   const [mostrarConta, setMostrarConta] = useState(false);
+  const [faturaAberta, setFaturaAberta] = useState<Fatura | null>(null);
   const [{ base, hoje, carregando, modo, ids }] = useApp();
 
   if (!base) {
@@ -40,7 +44,6 @@ export function TelaSemana({ irPara }: { irPara: (aba: 'ajustes' | 'revisar' | '
   const semanada = lerParametroNumero(base.parametros, 'semanada.valor', hoje, 0);
   const cortes = lerParametro(base.parametros, 'semana.cortes', hoje) || CORTES_PADRAO;
   const janela = lerParametroNumero(base.parametros, 'conciliacao.janela_dias', hoje, 5);
-  const pessoas = lerPessoas(base.parametros, hoje);
   const r = resumoSemana(base.lancamentos, hoje, semanada, cortes);
   const ini = partesData(r.semana.inicio);
   const fim = partesData(r.semana.fim);
@@ -61,6 +64,19 @@ export function TelaSemana({ irPara }: { irPara: (aba: 'ajustes' | 'revisar' | '
     .filter((l) => !l.excluido && (l.status === 'previsto' || l.status === 'agendado') && l.data_caixa >= hoje && l.data_caixa <= somarDias(hoje, 7))
     .filter((l) => base.contas.find((c) => c.id === l.conta_id)?.tipo !== 'cartao') // compras no cartão saem na fatura (M4)
     .sort((a, b) => a.data_caixa.localeCompare(b.data_caixa));
+
+  const cartoes = ativas.filter((c) => c.tipo === 'cartao');
+  // Por cartão: as fechadas ainda não pagas + a fatura aberta atual (as futuras ficam no detalhe/Extrato).
+  const faturasAbertas = cartoes.flatMap((cartao) => {
+    const lista = faturasEmAberto(cartao.id, base.faturas);
+    const atual = lista.find((f) => f.status === 'aberta');
+    return lista.filter((f) => f.status !== 'aberta' || f === atual).map((fatura) => ({ fatura, cartao }));
+  });
+  const cartoesSemCiclo = cartoes.filter((c) => !proximoCiclo(c.id, base.parametros, hoje));
+  const faturasProximas = faturasAbertas
+    .filter(({ fatura }) => fatura.data_vencimento >= hoje && fatura.data_vencimento <= somarDias(hoje, 7))
+    .map(({ fatura, cartao }) => ({ fatura, cartao, valor: totalFatura(fatura, base.lancamentos).total - pagamentosDaFatura(fatura, base.lancamentos) }))
+    .filter((x) => x.valor > 0);
 
   const foto = fotografiaDoMes({ mes: hoje.slice(0, 7), lancamentos: base.lancamentos, recorrencias: base.recorrencias, parametros: base.parametros });
 
@@ -155,6 +171,7 @@ export function TelaSemana({ irPara }: { irPara: (aba: 'ajustes' | 'revisar' | '
                 Saldo informado em {c.data_saldo_inicial ? ddmm(c.data_saldo_inicial) : '—'}: {formatarBRL(c.saldo_inicial ?? 0)}, mais o que entrou e
                 saiu (realizado) até hoje.{prox ? ` Próximo crédito: ${formatarBRL(Number(prox.rec.valor))} em ${ddmm(prox.data)}.` : ''}
               </p>
+              <AjusteSaldo contaId={c.id} saldoApp={saldo} />
             </details>
           );
         })}
@@ -162,7 +179,7 @@ export function TelaSemana({ irPara }: { irPara: (aba: 'ajustes' | 'revisar' | '
           const saldo = saldoConta(c, base.lancamentos, hoje);
           const prox = proximoCredito(c, base.recorrencias, hoje);
           const ate = prox?.data ?? fimDoMes;
-          const res = reservado(c, base.lancamentos, hoje, ate);
+          const res = reservado(c, base.lancamentos, hoje, ate, { contas: base.contas, faturas: base.faturas });
           return (
             <details key={c.id} class="cartao cartao-saldo">
               <summary>
@@ -171,68 +188,52 @@ export function TelaSemana({ irPara }: { irPara: (aba: 'ajustes' | 'revisar' | '
                 <span class="discreto">{formatarBRL(res.total)} já reservados</span>
               </summary>
               <p class="discreto">
-                Reservado = o que está previsto ou agendado para sair desta conta até {prox ? `o salário de ${ddmm(ate)}` : `o fim do mês (${ddmm(ate)})`}.
-                Faturas de cartão entram aqui no marco M4.
+                Reservado = o que está previsto ou agendado para sair desta conta até {prox ? `o salário de ${ddmm(ate)}` : `o fim do mês (${ddmm(ate)})`},
+                incluindo faturas dos cartões pagos por ela que vencem até lá.
               </p>
               {res.itens.length > 0 && (
                 <ul class="lista-conta">
-                  {res.itens.map((l) => (
-                    <li key={l.id}><span>{ddmm(l.data_caixa)} · {l.descricao}</span><span>{formatarBRL(l.valor)}</span></li>
+                  {res.itens.map((i) => (
+                    <li key={i.id}><span>{ddmm(i.data)} · {i.descricao}</span><span>{formatarBRL(i.valor)}</span></li>
                   ))}
                 </ul>
               )}
+              <AjusteSaldo contaId={c.id} saldoApp={saldo} />
             </details>
           );
         })}
       </div>
 
       {/* 5. Faturas abertas */}
-      {ativas.some((c) => c.tipo === 'cartao') && (
+      {faturasAbertas.length > 0 && (
         <div class="cartao">
           <h2 class="titulo-cartao">Faturas abertas</h2>
-          {ativas.filter((c) => c.tipo === 'cartao').map((c) => {
-            const a = abertoNoCartao(c.id, base.lancamentos);
-            const ciclo = proximoCiclo(c.id, base.parametros, hoje);
-            const dias = ciclo ? diffDias(hoje, ciclo.fechamento) : null;
-            const fatias = (['pessoa1', 'pessoa2', 'casal'] as const).filter((q) => a.porPessoa[q] > 0);
-            return (
-              <div key={c.id} class="fatura">
-                <div class="fatura-topo">
-                  <span class="saldo-nome">{c.nome}</span>
-                  <span class="saldo-valor">{formatarBRL(a.total)}</span>
-                </div>
-                <p class="discreto">
-                  {ciclo
-                    ? `${dias === 0 ? 'fecha hoje' : `fecha em ${dias} ${dias === 1 ? 'dia' : 'dias'}`}${ciclo.vencimento ? ` · vence ${ddmm(ciclo.vencimento)}` : ''}`
-                    : 'sem dia de fechamento cadastrado'}
-                </p>
-                {a.total > 0 && (
-                  <>
-                    <div class="barra barra-dividida" aria-hidden="true">
-                      {fatias.map((q) => (
-                        <div key={q} class={`fatia fatia-${q}`} style={{ width: `${(a.porPessoa[q] / a.total) * 100}%` }} />
-                      ))}
-                    </div>
-                    <p class="legenda-fatura">
-                      {fatias.map((q) => (
-                        <span key={q}><span class={`bolinha fatia-${q}`} />{q === 'casal' ? 'Casal' : pessoas[q]} {brl0(a.porPessoa[q])}</span>
-                      ))}
-                    </p>
-                  </>
-                )}
-              </div>
-            );
-          })}
+          {faturasAbertas.map(({ fatura, cartao }) => (
+            <ResumoFatura key={fatura.id} fatura={fatura} cartao={cartao} abrir={() => setFaturaAberta(fatura)} />
+          ))}
         </div>
+      )}
+      {cartoesSemCiclo.length > 0 && (
+        <p class="discreto">Falta cadastrar fechamento e vencimento de: {cartoesSemCiclo.map((c) => c.nome).join(', ')}.</p>
       )}
 
       {/* 6. Próximos 7 dias */}
       <div class="cartao">
         <h2 class="titulo-cartao">Próximos 7 dias</h2>
-        {proximos.length === 0 ? (
+        {proximos.length === 0 && faturasProximas.length === 0 ? (
           <p class="discreto">Nada previsto ou agendado.</p>
         ) : (
           <ul class="lista-proximos">
+            {faturasProximas.map(({ fatura, cartao, valor }) => (
+              <li key={fatura.id}>
+                <span class="ponto ponto-agendado" aria-hidden="true" />
+                <button type="button" class="textos-linha botao-texto" onClick={() => setFaturaAberta(fatura)}>
+                  <span class="descricao-linha">Fatura {cartao.nome}</span>
+                  <span class="detalhe-linha">{quandoTexto(fatura.data_vencimento, hoje)} · {nomeConta(cartao.conta_pagamento_id ?? '')}</span>
+                </button>
+                <span class="valor-linha">−{formatarBRL(valor)}</span>
+              </li>
+            ))}
             {proximos.map((l) => <ItemProximo key={l.id} l={l} conta={nomeConta(l.conta_id)} hoje={hoje} />)}
           </ul>
         )}
@@ -262,7 +263,48 @@ export function TelaSemana({ irPara }: { irPara: (aba: 'ajustes' | 'revisar' | '
           <button type="button" class="botao-link" onClick={() => irPara('fotografia')}>Veja onde dá para abrir espaço</button>
         )}
       </details>
+
+      {faturaAberta && <FolhaFatura fatura={faturaAberta} fechar={() => setFaturaAberta(null)} />}
     </section>
+  );
+}
+
+function quandoTexto(d: string, hoje: string) {
+  const dif = diffDias(hoje, d);
+  return dif === 0 ? 'hoje' : dif === 1 ? 'amanhã' : ddmm(d);
+}
+
+/** "O saldo do banco está diferente?" → cria um ajuste (SPEC 7). */
+function AjusteSaldo({ contaId, saldoApp }: { contaId: string; saldoApp: number }) {
+  const [, app] = useApp();
+  const toast = useToast();
+  const [aberto, setAberto] = useState(false);
+  const [valor, setValor] = useState('');
+  if (!aberto) {
+    return <button type="button" class="botao-link" onClick={() => setAberto(true)}>O saldo do banco está diferente? Ajustar</button>;
+  }
+  return (
+    <div class="campo">
+      <label for={`aj-${contaId}`}>Saldo que aparece no banco (R$)</label>
+      <div class="linha-frase">
+        <input id={`aj-${contaId}`} type="text" inputMode="decimal" value={valor} onInput={(e) => setValor((e.target as HTMLInputElement).value)} />
+        <button
+          type="button"
+          class="botao-secundario botao-curto"
+          onClick={async () => {
+            const v = lerNumero(valor.replace(/^−/, '-'));
+            if (v === null) return;
+            const l = await app.ajustarSaldo(contaId, v, saldoApp).catch(() => null);
+            setAberto(false);
+            setValor('');
+            if (l) toast({ texto: `Ajuste de ${l.sinal === '-' ? '−' : '+'}${formatarBRL(l.valor)} lançado`, acao: { rotulo: 'Desfazer', f: () => void app.excluir(l) } });
+          }}
+        >
+          Ajustar
+        </button>
+      </div>
+      <p class="discreto">O app lança a diferença como "ajuste de saldo", fora das análises.</p>
+    </div>
   );
 }
 

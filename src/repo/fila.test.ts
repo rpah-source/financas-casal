@@ -18,6 +18,10 @@ function repoFalso() {
       if (falha) throw falha;
       gravados.push(reg);
     },
+    atualizarVarios: async (_aba, regs) => {
+      if (falha) throw falha;
+      gravados.push(...regs);
+    },
   };
   return { repo, gravados, falhar: (e: Error | null) => (falha = e) };
 }

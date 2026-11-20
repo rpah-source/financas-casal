@@ -12,6 +12,8 @@ export interface Repositorio {
   carregar(hoje: string): Promise<Base>;
   inserir(aba: NomeAba, registros: Registro[]): Promise<void>;
   atualizar(aba: NomeAba, registro: Registro): Promise<void>;
+  /** Várias edições com uma leitura da coluna id e uma escrita. */
+  atualizarVarios(aba: NomeAba, registros: Registro[]): Promise<void>;
 }
 
 export class RepositorioPlanilha implements Repositorio {
@@ -61,14 +63,22 @@ export class RepositorioPlanilha implements Repositorio {
   }
 
   async atualizar(aba: NomeAba, registro: Registro): Promise<void> {
+    return this.atualizarVarios(aba, [registro]);
+  }
+
+  async atualizarVarios(aba: NomeAba, registros: Registro[]): Promise<void> {
+    if (!registros.length) return;
     const cab = await this.cabecalho(aba);
     // SPEC 5: relê a coluna id antes de editar, porque o usuário pode ter ordenado a planilha.
     const ids = await this.fonte.lerColuna(aba, cab.indexOf('id'));
-    const pos = ids.findIndex((v, i) => i > 0 && String(v) === String(registro.id));
-    if (pos < 0) throw new Error(`Não achei o registro ${registro.id} na aba ${aba}`);
-    const linha = montarLinha(cab, registro, this.brutas.get(String(registro.id)));
-    await this.fonte.gravarLinhas(aba, [{ linha: pos + 1, valores: linha }]);
-    this.brutas.set(String(registro.id), linha);
+    const linhas = registros.map((registro) => {
+      const pos = ids.findIndex((v, i) => i > 0 && String(v) === String(registro.id));
+      if (pos < 0) throw new Error(`Não achei o registro ${registro.id} na aba ${aba}`);
+      const valores = montarLinha(cab, registro, this.brutas.get(String(registro.id)));
+      return { linha: pos + 1, valores, id: String(registro.id) };
+    });
+    await this.fonte.gravarLinhas(aba, linhas.map(({ linha, valores }) => ({ linha, valores })));
+    for (const l of linhas) this.brutas.set(l.id, l.valores);
   }
 
   private async regravar(itens: Regravacao[]) {

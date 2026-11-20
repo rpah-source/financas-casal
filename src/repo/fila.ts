@@ -55,6 +55,11 @@ export class RepositorioComFila implements Repositorio {
     return this.escrever({ op: 'atualizar', aba, registros: [registro], em: new Date().toISOString() });
   }
 
+  atualizarVarios(aba: NomeAba, registros: Registro[]) {
+    if (!registros.length) return Promise.resolve();
+    return this.escrever({ op: 'atualizar', aba, registros, em: new Date().toISOString() });
+  }
+
   /** Envia o que está na fila, em ordem. Para no primeiro erro temporário. */
   async reenviar(): Promise<void> {
     await this.pronta;
@@ -87,7 +92,7 @@ export class RepositorioComFila implements Repositorio {
 
   private async executar(e: Escrita) {
     if (e.op === 'inserir') await this.repo.inserir(e.aba, e.registros);
-    else for (const r of e.registros) await this.repo.atualizar(e.aba, r);
+    else await this.repo.atualizarVarios(e.aba, e.registros);
   }
 
   private async salvar() {

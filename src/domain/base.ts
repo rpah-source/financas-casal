@@ -4,6 +4,7 @@ import { aba as specAba, NOMES_ABAS, type NomeAba } from './schema';
 import { statusInicial } from './status';
 import type { Categoria, Conta, Lancamento, Natureza, Parametro, RegistroGenerico, TipoConta } from './types';
 import { normalizar } from './valores';
+import type { Fatura } from './faturas';
 
 /**
  * Junta as abas lidas num modelo coerente (SPEC 5):
@@ -19,7 +20,7 @@ export interface Base {
   categorias: Categoria[];
   parametros: Parametro[];
   recorrencias: RegistroGenerico[];
-  faturas: RegistroGenerico[];
+  faturas: Fatura[];
   parcelamentos: RegistroGenerico[];
   dividas: RegistroGenerico[];
   regras: RegistroGenerico[];
@@ -129,7 +130,7 @@ export function montarBase(lidas: Partial<Record<NomeAba, AbaLida>>, hoje: strin
     categorias,
     parametros: registros('Parametros') as unknown as Parametro[],
     recorrencias: registros('Recorrencias'),
-    faturas: registros('Faturas'),
+    faturas: registros('Faturas') as unknown as Fatura[],
     parcelamentos: registros('Parcelamentos'),
     dividas: registros('Dividas'),
     regras: registros('Regras'),

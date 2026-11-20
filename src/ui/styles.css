@@ -530,3 +530,12 @@ body.sem-rolagem { overflow: hidden; }
 .linha-botoes.tres { grid-template-columns: 1fr 1fr 1fr; }
 .linha-botoes.tres button { margin: 4px 0; }
 .cartao.pergunta { border-color: var(--destaque); }
+
+/* M4: faturas */
+button.fatura { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--borda); padding: 10px 0; cursor: pointer; }
+button.fatura:first-of-type { border-top: 0; padding-top: 0; }
+button.fatura > span { display: block; }
+.fatura-topo { display: flex !important; }
+.alerta-ambar { display: block; margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: var(--atencao-fundo); color: var(--atencao); font-size: 14px; }
+.botao-texto { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+.info-fatura { padding: 12px 16px; }

@@ -57,3 +57,16 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D44 · Faturas abertas na Semana (provisório até o M4):** total = compras agendadas no cartão − estornos, dividido por pessoa; fechamento/vencimento pelos Parâmetros vigentes. Compras no cartão não aparecem em "Próximos 7 dias" (saem na fatura).
 - **D45 · Contas da Fotografia (9.2) já implementadas** porque a Semana mostra a projeção do mês (9.5). A tela da Fotografia continua no M6. A provisão de sazonais soma os lançamentos sazonais dos próximos 12 meses e as ocorrências de recorrências sazonais ainda não geradas, ÷ 12.
 - **D46 · Pergunta de casamento** sem gênero gramatical: "É **Faxina** (previsão de amanhã, R$ 180,00)?".
+
+## M4
+- **D47 · Fatura identificada pelo mês do vencimento** (`competencia`), criada sob demanda e ligada pelas compras via `fatura_id`; `data_caixa` da compra = vencimento da fatura. Ao abrir, o app liga compras de cartão sem fatura (inclusive previstos de assinaturas e linhas escritas por fora) e fecha as faturas cujo fechamento chegou.
+- **D48 · Cartão sem fechamento/vencimento cadastrados:** a compra fica sem fatura (data de caixa = data da compra) e a Semana avisa o que falta cadastrar.
+- **D49 · Total da fatura** = compras − estornos, inclusive previstos de assinatura que já caíram nela. Pagamento quita com 1% de folga.
+- **D50 · Situação da fatura sempre recalculada** a partir dos pagamentos realizados (pagar, editar, excluir ou desfazer um pagamento): paga → compras realizadas na data do último pagamento; parcial ou nada pago → compras agendadas com caixa no vencimento.
+- **D51 · Pagamento agendado para o futuro** liga à fatura, mas só quita quando vira realizado.
+- **D52 · Excluir uma parcela exclui a compra parcelada inteira** (todas as parcelas e a linha em Parcelamentos); desfazer restaura todas.
+- **D53 · Parcelas: de 2 a 48.** Cada parcela mantém a natureza e a categoria da compra; competência = data da compra (SPEC 6.3), então a compra inteira pesa no mês/semana da compra.
+- **D54 · Entrada no cartão = estorno:** categoria "Estorno" quando não houver outra, natureza `nenhuma`.
+- **D55 · Na Semana, por cartão:** faturas fechadas ainda não pagas + a fatura aberta atual. As futuras (parcelas, assinaturas) aparecem no detalhe e no Extrato.
+- **D56 · Ajuste de saldo:** no detalhe do saldo, "O saldo do banco está diferente? Ajustar" lança a diferença como `ajuste` (`sinal` + ou −), fora das análises.
+- **D57 · Empréstimo recebido:** opção em "Mais detalhes" da Entrada; marca `excluir_da_analise`.

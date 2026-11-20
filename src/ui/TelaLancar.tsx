@@ -10,6 +10,8 @@ import { statusInicial } from '../domain/status';
 import type { Lancamento, Natureza, Pessoa, StatusLancamento, TipoLancamento } from '../domain/types';
 import { normalizar } from '../domain/valores';
 import { Chips, EscolherCategoria, NOME_NATUREZA, NOME_STATUS, useToast } from './comum';
+import { cicloDaCompra, faturaParaPagamento, pagamentosDaFatura, totalFatura } from '../domain/faturas';
+import { nomeFatura } from './Fatura';
 import { useApp } from './useApp';
 import { diffDias } from '../domain/dates';
 
@@ -85,6 +87,8 @@ function Formulario(p: {
   const [obs, setObs] = useState('');
   const [statusManual, setStatusManual] = useState<StatusLancamento | ''>('');
   const [frase, setFrase] = useState('');
+  const [parcelas, setParcelas] = useState(1);
+  const [emprestimo, setEmprestimo] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [pergunta, setPergunta] = useState<{ lancamento: Lancamento; previsto: Lancamento; extra: Parameters<typeof app.lancar>[1] } | null>(null);
@@ -137,6 +141,7 @@ function Formulario(p: {
     if (r.descricao) setOnde(r.descricao);
     if (r.contaId) setContaId(r.contaId);
     if (r.quem) setQuem(r.quem);
+    if (r.parcelas && r.parcelas >= 2) setParcelas(r.parcelas);
     setData(r.data);
     setManual(null);
     setFrase('');
@@ -182,14 +187,18 @@ function Formulario(p: {
       observacao: obs,
     };
     const criarRegra = manual?.categoria && lembrar && onde.trim() && padraoSugerido(onde);
+    const parcelado = tipoConta === 'cartao' && tipo === 'despesa' && parcelas >= 2;
     const extra = {
+      parcelas: parcelado ? parcelas : null,
       regraId: !manual ? sugestao.regraId : null,
       novaRegra: criarRegra
         ? { padrao: padraoSugerido(onde), descricao: onde.trim(), categoria: manual!.categoria!, subcategoria: manual!.subcategoria ?? '', natureza: '' }
         : null,
     };
     try {
-      const { lancamento, previsto } = app.prepararLancamento(n, extra.regraId);
+      const preparado = app.prepararLancamento(n, extra.regraId);
+      const lancamento = tipo === 'receita' && emprestimo ? { ...preparado.lancamento, excluir_da_analise: true } : preparado.lancamento;
+      const previsto = parcelado ? null : preparado.previsto;
       if (previsto) {
         setPergunta({ lancamento, previsto, extra });
         return;
@@ -206,7 +215,7 @@ function Formulario(p: {
       const antes = extra?.casarCom ?? null;
       const l = await app.lancar(lancamento, extra);
       toast({
-        texto: antes ? 'Lançado no lugar do previsto' : 'Lançado',
+        texto: antes ? 'Lançado no lugar do previsto' : extra?.parcelas ? `Lançado em ${extra.parcelas} parcelas` : 'Lançado',
         acao: { rotulo: 'Desfazer', f: () => void (antes ? app.editar(antes) : app.excluir(l)) },
       });
       p.aoTerminar();
@@ -218,11 +227,22 @@ function Formulario(p: {
     }
   }
 
+  const destinoCartao = tipo === 'transferencia' ? contas.find((c) => c.id === destinoId && c.tipo === 'cartao') : undefined;
+  const faturaAlvo = destinoCartao
+    ? faturaParaPagamento(destinoCartao.id, centavos / 100 || 0.01, data, base.faturas, base.lancamentos)?.fatura
+    : undefined;
+  const devidoAlvo = faturaAlvo ? totalFatura(faturaAlvo, base.lancamentos).total - pagamentosDaFatura(faturaAlvo, base.lancamentos) : 0;
+  const cicloCompra = tipoConta === 'cartao' && conta ? cicloDaCompra(conta, data, base.parametros) : null;
+
   const fraseStatus =
     tipo === 'transferencia'
-      ? 'Transferência não é gasto nem renda: fica fora da semanada e das categorias.'
+      ? destinoCartao
+        ? 'Pagamento de fatura é transferência: não conta como gasto. Pagando o total, as compras da fatura passam para realizado.'
+        : 'Transferência não é gasto nem renda: fica fora da semanada e das categorias.'
       : tipoConta === 'cartao'
-        ? 'No cartão, entra como agendado até a fatura ser paga.'
+        ? tipo === 'receita'
+          ? 'Entrada no cartão é estorno: abate o total da fatura.'
+          : `${parcelas >= 2 ? `Em ${parcelas}× de ${formatarBRL(Math.floor(centavos / parcelas) / 100)}, uma parcela em cada fatura. ` : ''}No cartão, entra como agendado até a fatura ser paga.${cicloCompra ? ` ${parcelas >= 2 ? 'A 1ª parcela cai' : 'Cai'} na fatura que vence ${ddmm(cicloCompra.data_vencimento)}.` : ''}`
         : status === 'agendado'
           ? 'Data no futuro: entra como agendado.'
           : 'Entra como realizado (o dinheiro já saiu ou entrou).';
@@ -322,6 +342,17 @@ function Formulario(p: {
           aoEscolher={setDestinoId}
         />
       )}
+      {faturaAlvo && (
+        <div class="cartao info-fatura">
+          <p>
+            Paga a fatura de <strong>{nomeFatura(faturaAlvo)}</strong> (vence {ddmm(faturaAlvo.data_vencimento)}): falta{' '}
+            <strong>{formatarBRL(devidoAlvo)}</strong>.
+          </p>
+          {Math.round(devidoAlvo * 100) !== centavos && devidoAlvo > 0 && (
+            <button type="button" class="botao-link" onClick={() => setCentavos(Math.round(devidoAlvo * 100))}>Usar o valor da fatura</button>
+          )}
+        </div>
+      )}
       <Chips
         rotulo="Quem"
         opcoes={[
@@ -357,7 +388,20 @@ function Formulario(p: {
       <details class="mais-detalhes">
         <summary>Mais detalhes</summary>
         {tipoConta === 'cartao' && tipo === 'despesa' && (
-          <p class="discreto">Compras parceladas no cartão chegam no marco M4.</p>
+          <div class="campo">
+            <label for="parcelas">Parcelas</label>
+            <select id="parcelas" value={parcelas} onChange={(e) => setParcelas(Number((e.target as HTMLSelectElement).value))}>
+              {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>{n === 1 ? 'À vista' : `${n}× de ${formatarBRL(Math.floor(centavos / n) / 100)}`}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {tipo === 'receita' && (
+          <label class="caixa">
+            <input type="checkbox" checked={emprestimo} onChange={(e) => setEmprestimo((e.target as HTMLInputElement).checked)} />
+            É empréstimo recebido (entra no saldo, mas não conta como renda)
+          </label>
         )}
         <div class="campo">
           <label for="projeto">Projeto ou área</label>

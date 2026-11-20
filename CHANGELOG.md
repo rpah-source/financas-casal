@@ -1,5 +1,15 @@
 # Changelog
 
+## M4 · Cartões e faturas — 20/11/2026
+**O que dá para testar no celular**
+- Compra no cartão cai na **fatura certa** pelo dia de fechamento. A tela de lançar diz em qual fatura cai ("Cai na fatura que vence 07/12").
+- **Parcelado:** `geladeira 3x 2400 nubank` (ou Mais detalhes › Parcelas) cria uma parcela em cada fatura. No Extrato aparece "1/3, 2/3, 3/3".
+- **Semana › Faturas abertas:** total, "fecha em N dias · vence dd/mm", divisão por pessoa. Tocar abre a fatura com as compras e o botão **Registrar pagamento**.
+- **Pagar o total** marca todas as compras da fatura como realizadas. **Pagar menos** deixa a fatura "paga parcialmente", com aviso em âmbar sobre o rotativo.
+- Transferência para um cartão (no +) também conta como pagamento e mostra quanto falta.
+- **"Já reservado"** da conta passa a incluir as faturas que vencem antes do próximo salário. **Próximos 7 dias** mostra faturas vencendo.
+- **Ajustar saldo** (tocar no saldo da conta ou do vale) e **empréstimo recebido** (Entrada › Mais detalhes).
+
 ## M3 · Previstos e Semana completa — 19/11/2026
 **O que dá para testar no celular**
 - Ao abrir, o app cria os **previstos** das recorrências (salário, crédito do vale…) do mês atual e dos 2 seguintes. Eles aparecem no Extrato com o ponto tracejado.

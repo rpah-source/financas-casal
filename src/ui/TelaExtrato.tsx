@@ -201,7 +201,7 @@ function LinhaLancamento(p: {
   const detalhe =
     l.tipo === 'transferencia'
       ? `${p.conta} → ${p.destino ?? ''}`
-      : [l.subcategoria || l.categoria || 'Sem categoria', p.conta].filter(Boolean).join(' · ');
+      : [l.subcategoria || l.categoria || 'Sem categoria', p.conta, l.parcela_total ? `${l.parcela_num}/${l.parcela_total}` : ''].filter(Boolean).join(' · ');
   const inicial = (l.categoria || (l.tipo === 'transferencia' ? '⇄' : '?')).slice(0, 1).toUpperCase();
 
   return (

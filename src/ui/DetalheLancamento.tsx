@@ -5,6 +5,8 @@ import type { Lancamento, Natureza, Pessoa, StatusLancamento } from '../domain/t
 import { lerNumero } from '../domain/valores';
 import { EscolherCategoria, Folha, NOME_NATUREZA, NOME_ORIGEM, NOME_STATUS, useToast } from './comum';
 import { useApp } from './useApp';
+import { nomeFatura } from './Fatura';
+import { ddmm } from '../domain/dates';
 
 /** Detalhe e edição de um lançamento (SPEC 10.3). */
 export function DetalheLancamento({ l, fechar }: { l: Lancamento; fechar: () => void }) {
@@ -18,8 +20,14 @@ export function DetalheLancamento({ l, fechar }: { l: Lancamento; fechar: () => 
   const [erro, setErro] = useState('');
   const mudar = (p: Partial<Lancamento>) => setE({ ...e, ...p });
 
+  const fatura = l.fatura_id ? base.faturas.find((f) => f.id === l.fatura_id) : undefined;
+
   async function salvar() {
     const valor = lerNumero(valorTexto);
+    // SPEC 6.2: só pede confirmação se a mudança mexe numa fatura já paga.
+    if (fatura?.status === 'paga' && (e.status !== l.status || valor !== l.valor) && l.tipo !== 'transferencia') {
+      if (!window.confirm('Esta compra está numa fatura já paga. Mudar mesmo assim?')) return;
+    }
     if (!valor || valor <= 0) return setErro('Valor inválido.');
     if (e.tipo === 'transferencia' && (!e.conta_destino_id || e.conta_destino_id === e.conta_id)) {
       return setErro('Escolha a conta de destino.');
@@ -54,6 +62,13 @@ export function DetalheLancamento({ l, fechar }: { l: Lancamento; fechar: () => 
         {l.conciliado ? ' · conciliado' : ''}
         {l.descricao_original ? ` · no banco: "${l.descricao_original}"` : ''}
       </p>
+      {(fatura || l.parcela_total) && (
+        <p class="discreto">
+          {fatura ? `Fatura de ${nomeFatura(fatura)} (vence ${ddmm(fatura.data_vencimento)}, ${fatura.status === 'paga' ? 'paga' : fatura.status === 'paga_parcial' ? 'paga parcialmente' : fatura.status})` : ''}
+          {fatura && l.parcela_total ? ' · ' : ''}
+          {l.parcela_total ? `Parcela ${l.parcela_num} de ${l.parcela_total} (excluir apaga a compra inteira)` : ''}
+        </p>
+      )}
 
       {campo('d-desc', 'Descrição', <input id="d-desc" type="text" value={e.descricao ?? ''} onInput={(ev) => mudar({ descricao: (ev.target as HTMLInputElement).value })} />)}
       {campo('d-valor', 'Valor (R$)', <input id="d-valor" type="text" inputMode="decimal" value={valorTexto} onInput={(ev) => setValorTexto((ev.target as HTMLInputElement).value)} />)}

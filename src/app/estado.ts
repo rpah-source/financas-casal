@@ -15,6 +15,9 @@ import { criarLancamento, duplicarLancamento, type NovoLancamento } from '../dom
 import { gerarParcelasDivida, gerarPrevistos } from '../domain/recorrencias';
 import { casarComPrevisto, procurarPrevisto } from '../domain/casamento';
 import { statusInicial } from '../domain/status';
+import {
+  cicloDaCompra, criarParcelamento, faturaParaPagamento, obterFatura, recalcularFatura, sincronizarFaturas, type Fatura,
+} from '../domain/faturas';
 import type { Lancamento } from '../domain/types';
 import type { Registro } from '../domain/linhas';
 import { novoId } from '../domain/ids';
@@ -120,6 +123,7 @@ export class App {
       this.set({ base, carregando: false, doCache: false, precisaEntrarDeNovo: false });
       void this.prepararProjetosAreas();
       await this.gerarPrevistos();
+      await this.sincronizarCartoes();
       if (this.estado.modo === 'google' && this.estado.ids?.planilha) {
         await this.armazem.gravar(`base:${this.estado.ids.planilha}`, base).catch(() => {});
       }
@@ -237,13 +241,56 @@ export class App {
   /** Salva um lançamento novo (SPEC 10.2). Opcionalmente cria a regra de-para sugerida. */
   async lancar(
     n: NovoLancamento | Lancamento,
-    extra: { regraId?: string | null; novaRegra?: Registro | null; casarCom?: Lancamento | null } = {},
+    extra: {
+      regraId?: string | null;
+      novaRegra?: Registro | null;
+      casarCom?: Lancamento | null;
+      /** Compra parcelada no cartão (SPEC 6.3). */
+      parcelas?: number | null;
+      /** Pagamento de fatura: qual fatura quitar (senão o app escolhe, SPEC 7). */
+      faturaId?: string | null;
+    } = {},
   ): Promise<Lancamento> {
     const base = this.estado.base;
     if (!base || !this.repo) throw new Error('Os dados ainda não carregaram');
     let l = 'id' in n ? n : criarLancamento(n, { contas: base.contas, categorias: base.categorias, hoje: this.estado.hoje });
+    const conta = base.contas.find((c) => c.id === l.conta_id);
+    const destino = base.contas.find((c) => c.id === l.conta_destino_id);
     if (extra.casarCom) {
       l = await this.casarComPrevisto(extra.casarCom, l);
+    } else if (conta?.tipo === 'cartao' && l.tipo !== 'transferencia') {
+      if (l.tipo === 'receita' && (!l.categoria || l.categoria === 'Sem categoria')) l = { ...l, categoria: 'Estorno', natureza: 'nenhuma' };
+      if (l.tipo === 'despesa' && (extra.parcelas ?? 1) >= 2) {
+        const r = criarParcelamento({ base: l, parcelas: extra.parcelas!, parametros: base.parametros, faturas: base.faturas, hoje: this.estado.hoje });
+        this.set({
+          base: {
+            ...this.estado.base!,
+            faturas: [...this.estado.base!.faturas, ...r.faturasNovas],
+            parcelamentos: [...this.estado.base!.parcelamentos, r.parcelamento],
+            lancamentos: [...this.estado.base!.lancamentos, ...r.lancamentos],
+          },
+        });
+        await this.escrever(async () => {
+          if (r.faturasNovas.length) await this.repo!.inserir('Faturas', r.faturasNovas as unknown as Registro[]);
+          await this.repo!.inserir('Parcelamentos', [r.parcelamento]);
+          await this.repo!.inserir('Lancamentos', r.lancamentos as unknown as Registro[]);
+        });
+        l = r.lancamentos[0];
+      } else {
+        l = await this.ligarAFatura(l);
+        this.mudarLancamentos((ls) => [...ls, l]);
+        await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
+      }
+    } else if (l.tipo === 'transferencia' && destino?.tipo === 'cartao') {
+      // Pagamento de fatura (SPEC 7): liga à fatura e, se já realizado, quita.
+      const faturas = base.faturas;
+      const fatura = extra.faturaId
+        ? faturas.find((f) => f.id === extra.faturaId)
+        : faturaParaPagamento(destino.id, l.valor, l.data_caixa, faturas, base.lancamentos)?.fatura;
+      if (fatura) l = { ...l, fatura_id: fatura.id, descricao: l.descricao || `Pagamento da fatura ${destino.nome}` };
+      this.mudarLancamentos((ls) => [...ls, l]);
+      await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
+      if (fatura) await this.recalcularFatura(fatura.id);
     } else {
       this.mudarLancamentos((ls) => [...ls, l]);
       await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
@@ -265,23 +312,143 @@ export class App {
   }
 
   async editar(l: Lancamento) {
-    const novo = { ...l, atualizado_em: new Date().toISOString() };
+    const base = this.estado.base!;
+    const antes = base.lancamentos.find((x) => x.id === l.id);
+    let novo: Lancamento = { ...l, atualizado_em: new Date().toISOString() };
+    const conta = base.contas.find((c) => c.id === novo.conta_id);
+    // Compra no cartão que mudou de data ou de conta: vai para a fatura certa (SPEC 6.3).
+    if (
+      conta?.tipo === 'cartao' && novo.tipo !== 'transferencia' && !novo.parcelamento_id &&
+      (!antes || antes.data_competencia !== novo.data_competencia || antes.conta_id !== novo.conta_id || !novo.fatura_id)
+    ) {
+      novo = await this.ligarAFatura({ ...novo, fatura_id: null });
+    } else if (conta && conta.tipo !== 'cartao' && antes && base.contas.find((c) => c.id === antes.conta_id)?.tipo === 'cartao' && novo.tipo !== 'transferencia') {
+      novo = { ...novo, fatura_id: null, data_caixa: novo.data_competencia };
+    }
     this.mudarLancamentos((ls) => ls.map((x) => (x.id === l.id ? novo : x)));
     await this.escrever(() => this.repo!.atualizar('Lancamentos', novo as unknown as Registro));
+    // Pagamento de fatura editado/excluído: refaz a situação da fatura.
+    const faturasAfetadas = new Set([antes?.fatura_id, novo.fatura_id].filter((x): x is string => Boolean(x)));
+    if (novo.tipo === 'transferencia' || antes?.tipo === 'transferencia') {
+      for (const id of faturasAfetadas) await this.recalcularFatura(id);
+    }
+  }
+
+  /** Liga uma compra/estorno de cartão à fatura certa (criando a fatura se preciso). */
+  private async ligarAFatura(l: Lancamento): Promise<Lancamento> {
+    const base = this.estado.base!;
+    const ciclo = cicloDaCompra(l.conta_id, l.data_competencia, base.parametros);
+    if (!ciclo) return l; // sem fechamento/vencimento cadastrados: fica como está
+    const { fatura, nova } = obterFatura(base.faturas, l.conta_id, ciclo, this.estado.hoje);
+    if (nova) {
+      this.set({ base: { ...this.estado.base!, faturas: [...this.estado.base!.faturas, fatura] } });
+      await this.escrever(() => this.repo!.inserir('Faturas', [fatura as unknown as Registro]));
+    }
+    return { ...l, fatura_id: fatura.id, data_caixa: fatura.data_vencimento };
+  }
+
+  /** Refaz status da fatura e das compras dela a partir dos pagamentos (SPEC 6.2). */
+  private async recalcularFatura(faturaId: string) {
+    const base = this.estado.base!;
+    const fatura = base.faturas.find((f) => f.id === faturaId);
+    if (!fatura) return;
+    const r = recalcularFatura(fatura, base.lancamentos, this.estado.hoje);
+    const porId = new Map(r.lancamentosAlterados.map((x) => [x.id, x]));
+    this.set({
+      base: {
+        ...base,
+        faturas: base.faturas.map((f) => (f.id === faturaId ? r.fatura : f)),
+        lancamentos: base.lancamentos.map((x) => porId.get(x.id) ?? x),
+      },
+    });
+    await this.escrever(async () => {
+      if (r.fatura !== fatura) await this.repo!.atualizar('Faturas', r.fatura as unknown as Registro);
+      await this.repo!.atualizarVarios('Lancamentos', r.lancamentosAlterados as unknown as Registro[]);
+    });
+  }
+
+  /** Registra o pagamento de uma fatura (transferência da conta para o cartão). */
+  async pagarFatura(fatura: Fatura, valor: number, contaId: string, data: string): Promise<Lancamento> {
+    const base = this.estado.base!;
+    const cartao = base.contas.find((c) => c.id === fatura.cartao_id);
+    const l = criarLancamento(
+      {
+        tipo: 'transferencia', valor, descricao: `Pagamento da fatura ${cartao?.nome ?? ''}`.trim(), contaId,
+        contaDestinoId: fatura.cartao_id, data, quem: 'casal',
+      },
+      { contas: base.contas, categorias: base.categorias, hoje: this.estado.hoje },
+    );
+    return this.lancar(l, { faturaId: fatura.id });
+  }
+
+  /** Ajuste de saldo (SPEC 7): corrige a diferença entre o app e o banco. */
+  async ajustarSaldo(contaId: string, saldoNoBanco: number, saldoNoApp: number): Promise<Lancamento | null> {
+    const dif = Math.round((saldoNoBanco - saldoNoApp) * 100) / 100;
+    if (Math.abs(dif) < 0.01) return null;
+    const base = this.estado.base!;
+    const l = criarLancamento(
+      { tipo: 'ajuste', valor: Math.abs(dif), descricao: 'Ajuste de saldo', contaId, data: this.estado.hoje, quem: 'casal' },
+      { contas: base.contas, categorias: base.categorias, hoje: this.estado.hoje },
+    );
+    return this.lancar({ ...l, sinal: dif > 0 ? ('+' as const) : ('-' as const), excluir_da_analise: true, natureza: 'nenhuma' });
+  }
+
+  /** Ao abrir: liga compras de cartão às faturas e fecha as que já fecharam. */
+  async sincronizarCartoes() {
+    const base = this.estado.base;
+    if (!base || !this.repo) return;
+    const s = sincronizarFaturas({ contas: base.contas, faturas: base.faturas, lancamentos: base.lancamentos, parametros: base.parametros, hoje: this.estado.hoje });
+    if (!s.faturasNovas.length && !s.faturasAlteradas.length && !s.lancamentosAlterados.length) return;
+    const fat = new Map(s.faturasAlteradas.map((f) => [f.id, f]));
+    const lan = new Map(s.lancamentosAlterados.map((l) => [l.id, l]));
+    this.set({
+      base: {
+        ...base,
+        faturas: [...base.faturas.map((f) => fat.get(f.id) ?? f), ...s.faturasNovas],
+        lancamentos: base.lancamentos.map((l) => lan.get(l.id) ?? l),
+      },
+    });
+    await this.escrever(async () => {
+      if (s.faturasNovas.length) await this.repo!.inserir('Faturas', s.faturasNovas as unknown as Registro[]);
+      if (s.faturasAlteradas.length) await this.repo!.atualizarVarios('Faturas', s.faturasAlteradas as unknown as Registro[]);
+      if (s.lancamentosAlterados.length) await this.repo!.atualizarVarios('Lancamentos', s.lancamentosAlterados as unknown as Registro[]);
+    }).catch(() => {});
   }
 
   /**
    * Exclusão lógica (SPEC 5): nunca apaga a linha. Previsto de recorrência
    * vira "cancelado" (pulado), senão a recorrência o criaria de novo.
+   * Parcela de compra parcelada: exclui a compra inteira (todas as parcelas).
    */
-  excluir(l: Lancamento) {
+  async excluir(l: Lancamento) {
     if (l.recorrencia_id && l.status === 'previsto') return this.editar({ ...l, status: 'cancelado' });
+    if (l.parcelamento_id) return this.marcarParcelamento(l.parcelamento_id, true);
     return this.editar({ ...l, excluido: true });
   }
 
   /** Desfaz a exclusão (ou o cancelamento) devolvendo a versão anterior. */
-  desfazerExclusao(l: Lancamento) {
+  async desfazerExclusao(l: Lancamento) {
+    if (l.parcelamento_id) return this.marcarParcelamento(l.parcelamento_id, false);
     return this.editar({ ...l, excluido: false });
+  }
+
+  private async marcarParcelamento(parcelamentoId: string, excluido: boolean) {
+    const base = this.estado.base!;
+    const agora = new Date().toISOString();
+    const parcelas = base.lancamentos.filter((x) => x.parcelamento_id === parcelamentoId).map((x) => ({ ...x, excluido, atualizado_em: agora }));
+    const par = base.parcelamentos.find((x) => x.id === parcelamentoId);
+    const ids = new Set(parcelas.map((x) => x.id));
+    this.set({
+      base: {
+        ...base,
+        lancamentos: base.lancamentos.map((x) => (ids.has(x.id) ? parcelas.find((p) => p.id === x.id)! : x)),
+        parcelamentos: base.parcelamentos.map((x) => (x.id === parcelamentoId ? { ...x, excluido, atualizado_em: agora } : x)),
+      },
+    });
+    await this.escrever(async () => {
+      await this.repo!.atualizarVarios('Lancamentos', parcelas as unknown as Registro[]);
+      if (par) await this.repo!.atualizar('Parcelamentos', { ...par, excluido, atualizado_em: agora });
+    });
   }
 
   async duplicar(l: Lancamento): Promise<Lancamento> {

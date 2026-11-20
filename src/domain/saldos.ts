@@ -1,3 +1,4 @@
+import { pagamentosDaFatura, totalFatura, type Fatura } from './faturas';
 import { proximaData } from './recorrencias';
 import type { Conta, DataISO, Lancamento, RegistroGenerico } from './types';
 import { normalizar } from './valores';
@@ -30,17 +31,47 @@ export function saldoConta(conta: Conta, lancamentos: Lancamento[], hoje: DataIS
   return c / 100;
 }
 
-/** "Já reservado": agendados e previstos que saem da conta de hoje até `ate`. */
-export function reservado(conta: Conta, lancamentos: Lancamento[], hoje: DataISO, ate: DataISO): { total: number; itens: Lancamento[] } {
-  const itens = lancamentos.filter(
-    (l) =>
-      !l.excluido &&
-      (l.status === 'agendado' || l.status === 'previsto') &&
-      l.data_caixa >= hoje &&
-      l.data_caixa <= ate &&
-      efeito(l, conta.id) < 0,
-  );
-  return { total: itens.reduce((s, l) => s - efeito(l, conta.id), 0) / 100, itens };
+/**
+ * "Já reservado": agendados e previstos que saem da conta de hoje até `ate`,
+ * mais o que falta pagar das faturas dos cartões pagos por esta conta que
+ * vencem nesse período (SPEC 9.4).
+ */
+export interface ItemReservado {
+  id: string;
+  descricao: string;
+  data: DataISO;
+  valor: number;
+}
+
+export function reservado(
+  conta: Conta,
+  lancamentos: Lancamento[],
+  hoje: DataISO,
+  ate: DataISO,
+  cartoes?: { contas: Conta[]; faturas: Fatura[] },
+): { total: number; itens: ItemReservado[] } {
+  const itens: ItemReservado[] = lancamentos
+    .filter(
+      (l) =>
+        !l.excluido &&
+        (l.status === 'agendado' || l.status === 'previsto') &&
+        l.data_caixa >= hoje &&
+        l.data_caixa <= ate &&
+        efeito(l, conta.id) < 0,
+    )
+    .map((l) => ({ id: l.id, descricao: l.descricao || l.categoria || 'Sem descrição', data: l.data_caixa, valor: -efeito(l, conta.id) / 100 }));
+  if (cartoes) {
+    for (const cartao of cartoes.contas.filter((c) => c.tipo === 'cartao' && c.conta_pagamento_id === conta.id)) {
+      for (const f of cartoes.faturas) {
+        if (f.excluido || f.cartao_id !== cartao.id || f.status === 'paga') continue;
+        if (f.data_vencimento < hoje || f.data_vencimento > ate) continue;
+        const devido = totalFatura(f, lancamentos).total - pagamentosDaFatura(f, lancamentos);
+        if (devido > 0) itens.push({ id: f.id, descricao: `Fatura ${cartao.nome}`, data: f.data_vencimento, valor: Math.round(devido * 100) / 100 });
+      }
+    }
+  }
+  itens.sort((a, b) => a.data.localeCompare(b.data));
+  return { total: Math.round(itens.reduce((s, i) => s + i.valor * 100, 0)) / 100, itens };
 }
 
 /**

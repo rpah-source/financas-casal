@@ -70,3 +70,15 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D55 · Na Semana, por cartão:** faturas fechadas ainda não pagas + a fatura aberta atual. As futuras (parcelas, assinaturas) aparecem no detalhe e no Extrato.
 - **D56 · Ajuste de saldo:** no detalhe do saldo, "O saldo do banco está diferente? Ajustar" lança a diferença como `ajuste` (`sinal` + ou −), fora das análises.
 - **D57 · Empréstimo recebido:** opção em "Mais detalhes" da Entrada; marca `excluir_da_analise`.
+
+## M5
+- **D58 · Chave de deduplicação com FITID inclui o valor com sinal** (`conta|FITID|±centavos`): no arquivo real do Nubank, compra e estorno (e compra e IOF) vêm com o mesmo FITID. Sem FITID: `conta|data|±centavos|descrição normalizada|n` (SPEC 8.3, com o sinal). Linha cuja chave já está em Lançamentos **ou na CaixaEntrada** (inclusive descartada) é ignorada — assim importar de novo não muda nada.
+- **D59 · Texto colado do PDF de fatura:** o leitor entende seções (créditos/pagamentos, parcelamentos, despesas), cabeçalho de cada cartão com o final (→ pessoa por `finais_cartao`), ícones soltos antes da data e várias compras na mesma linha. Ano inferido: o mais recente que não passa do vencimento (ou de hoje).
+- **D60 · Parcela vinda da fatura** (ex.: "Loja - Parcela 3/6" ou "LOJA 03/06") vira um lançamento com `parcela_num`/`parcela_total`, sem criar as parcelas futuras (elas chegam nas próximas faturas). Casa com parcela já lançada no app pelo número e valor.
+- **D61 · Pagamento visto na fatura** ("Pagamento recebido", "DEB AUTOM DE FATURA") vira transferência da conta que paga o cartão; casa com o pagamento já registrado (mesmo valor, dentro da janela) e quita a fatura certa pelo valor.
+- **D62 · Fatura da importação:** pelo vencimento informado (texto) ou escolhido na tela; sem ele, a de fechamento mais próximo do fim do período do arquivo (OFX). Total do banco fica em `valor_importado`; o arquivo em `doc`.
+- **D63 · Original no Drive** em `Faturas e extratos/AAAA/` (pasta do ano criada pelo app), com o nome de 4.5 b. Se o envio falhar (sem internet), a importação continua sem o link.
+- **D64 · Conta lembrada por arquivo:** o identificador da conta no banco (OFX `ACCTID`) fica em Parametros (`importacao.conta_externa`) para pré-selecionar a conta nas próximas importações. Perfis de CSV salvos em Parametros (`csv.perfil`, valor JSON).
+- **D65 · "Aceitar todos"** grava os novos em lote (uma escrita); transferências são aceitas uma a uma (precisam achar a fatura que quitam). Itens sem conta ou valor ficam para o usuário completar.
+- **D66 · "Manter"** em "Lançados no app, mas não estão na fatura" só esconde o aviso neste aparelho (não muda o lançamento).
+- **D67 · @types/node** como dependência de desenvolvimento, só para os testes lerem os arquivos de `samples/`.

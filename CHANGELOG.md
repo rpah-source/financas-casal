@@ -1,5 +1,15 @@
 # Changelog
 
+## M5 · Importar faturas e extratos — 20/11/2026
+**O que dá para testar no celular**
+- **Extrato › Importar** (ou Revisar › Trazer outra fatura ou extrato): escolha a conta/cartão e um arquivo **OFX** ou **CSV** do app Arquivos, ou **cole o texto** da fatura (ex.: copiado do PDF do Santander).
+- A tela mostra o que encontrou e confere com o total do banco ("Compras − créditos lidos" × "Total informado pelo banco"). No cartão, confirme o vencimento da fatura.
+- O arquivo original vai para "Faturas e extratos/AAAA/" no Drive.
+- **Revisar**: contadores (já batiam · para confirmar · novos), cartões "Parece ser…" com **É esse / Não, é outro**, lista de novos já categorizados com **Aceitar todos**, toque na categoria para trocar e oferta **"Criar regra para…"**, e "Lançados no app, mas não estão na fatura" (Manter / Excluir / Mover).
+- Importar o mesmo arquivo de novo não duplica nada.
+- Itens escritos na aba **CaixaEntrada** por fora (ex.: pelo assistente) aparecem em Revisar para aceitar ou descartar.
+- PDF: por enquanto só é salvo no Drive e ligado à fatura (leitura automática numa próxima versão).
+
 ## M4 · Cartões e faturas — 20/11/2026
 **O que dá para testar no celular**
 - Compra no cartão cai na **fatura certa** pelo dia de fechamento. A tela de lançar diz em qual fatura cai ("Cai na fatura que vence 07/12").

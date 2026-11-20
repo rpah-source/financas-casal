@@ -9,10 +9,39 @@ export type Fetch = typeof fetch;
 
 export interface ClienteGoogle {
   json<T>(url: string, opcoes?: { metodo?: string; corpo?: unknown }): Promise<T>;
+  /** POST com corpo binário (upload de arquivo). */
+  enviar<T>(url: string, corpo: Blob, contentType: string): Promise<T>;
 }
 
 export function criarClienteGoogle(obterToken: ObterToken, f: Fetch = (...a) => fetch(...a), esperar = dormir): ClienteGoogle {
+  async function chamar<T>(url: string, init: (token: string) => RequestInit): Promise<T> {
+    const token = await obterToken();
+    for (let tentativa = 0; ; tentativa++) {
+      let resp: Response;
+      try {
+        resp = await f(url, init(token));
+      } catch {
+        throw new ErroSemConexao();
+      }
+      if (resp.ok) return (resp.status === 204 ? undefined : await resp.json()) as T;
+      if (resp.status === 401) throw new ErroSessao();
+      if ((resp.status === 429 || resp.status >= 500) && tentativa < 3) {
+        await esperar(500 * 2 ** tentativa);
+        continue;
+      }
+      let detalhe = '';
+      try {
+        detalhe = (await resp.json())?.error?.message ?? '';
+      } catch {
+        // corpo sem JSON
+      }
+      throw new ErroGoogle(resp.status, detalhe);
+    }
+  }
   return {
+    enviar<T>(url: string, corpo: Blob, contentType: string) {
+      return chamar<T>(url, (token) => ({ method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType }, body: corpo }));
+    },
     async json<T>(url: string, opcoes: { metodo?: string; corpo?: unknown } = {}): Promise<T> {
       const token = await obterToken();
       for (let tentativa = 0; ; tentativa++) {

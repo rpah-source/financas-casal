@@ -7,11 +7,12 @@ import { AvisoToast, ContextoToast, type Toast } from './comum';
 import { TelaExtrato } from './TelaExtrato';
 import { TelaLancar } from './TelaLancar';
 import { TelaRevisar } from './TelaRevisar';
+import { TelaImportar } from './TelaImportar';
 import { TelaAjustes } from './TelaAjustes';
 import { TelaSemana } from './TelaSemana';
 import { ContextoApp, useApp } from './useApp';
 
-const ABAS: Aba[] = ['semana', 'extrato', 'lancar', 'fotografia', 'ajustes', 'revisar'];
+const ABAS: Aba[] = ['semana', 'extrato', 'lancar', 'fotografia', 'ajustes', 'revisar', 'importar'];
 
 function abaDaUrl(): Aba {
   const h = window.location.hash.replace(/^#\/?/, '');
@@ -86,8 +87,9 @@ function Casca() {
       )}
       <main class="conteudo">
         {aba === 'semana' && <TelaSemana irPara={irPara} />}
-        {aba === 'revisar' && <TelaRevisar voltar={() => irPara('semana')} />}
-        {aba === 'extrato' && <TelaExtrato />}
+        {aba === 'revisar' && <TelaRevisar voltar={() => irPara('semana')} importar={() => irPara('importar')} />}
+        {aba === 'importar' && <TelaImportar aoTerminar={() => irPara('revisar')} voltar={() => irPara('revisar')} />}
+        {aba === 'extrato' && <TelaExtrato importar={() => irPara('importar')} />}
         {aba === 'lancar' && <TelaLancar aoTerminar={() => irPara(anterior)} />}
         {aba === 'fotografia' && <EmBreve titulo="Fotografia do mês" marco="M6" texto="Aqui vai aparecer o retrato do mês: quanto entra, quanto sai em cada tipo de gasto e como o mês deve fechar." />}
         {aba === 'ajustes' && <TelaAjustes />}

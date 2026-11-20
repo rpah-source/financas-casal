@@ -2,7 +2,7 @@ import { criarBase, type IdsBase } from '../bootstrap/bootstrap';
 import { googleConfigurado } from '../config';
 import type { Base } from '../domain/base';
 import { hojeSP } from '../domain/dates';
-import { lerParametro, lerParametroNumero } from '../domain/parametros';
+import { lerParametro, lerParametroNumero, lerPessoas } from '../domain/parametros';
 import { planilhaDemo } from '../demo/planilhaDemo';
 import { SessaoGoogle } from '../google/auth';
 import { criarClienteGoogle } from '../google/http';
@@ -16,16 +16,24 @@ import { gerarParcelasDivida, gerarPrevistos } from '../domain/recorrencias';
 import { casarComPrevisto, procurarPrevisto } from '../domain/casamento';
 import { statusInicial } from '../domain/status';
 import {
-  cicloDaCompra, criarParcelamento, faturaParaPagamento, obterFatura, recalcularFatura, sincronizarFaturas, type Fatura,
+  cicloDaCompra, cicloDaImportacao, criarParcelamento, faturaParaPagamento, obterFatura, recalcularFatura, sincronizarFaturas, type Fatura,
 } from '../domain/faturas';
 import type { Lancamento } from '../domain/types';
 import type { Registro } from '../domain/linhas';
 import { novoId } from '../domain/ids';
 import { lerIndice } from '../google/indice';
+import type { ArquivoLido } from '../domain/importacao/tipos';
+import { lerOFX } from '../domain/importacao/ofx';
+import { detectarPerfil, lerCSV, separarCSV, type PerfilCSV } from '../domain/importacao/csv';
+import { lerTexto } from '../domain/importacao/texto';
+import { atualizarComImportado, conciliar } from '../domain/importacao/conciliacao';
+import { lancamentoDaCaixa, previaCaixa, type PreviaCaixa } from '../domain/importacao/caixa';
+import { regraCasa } from '../domain/regras';
+import type { Conta, RegistroGenerico } from '../domain/types';
 import { MemoriaTabelas } from '../repo/memoria';
 import { RepositorioPlanilha } from '../repo/repositorio';
 import { SheetsTabelas } from '../repo/sheets';
-import { GoogleDriveStorage } from '../storage/drive';
+import { GoogleDriveStorage, MemoryStorage, type DriveStorage } from '../storage/drive';
 
 /**
  * Estado do app: modo (demonstração ou Google), dados carregados, fila de
@@ -48,6 +56,23 @@ export interface Estado {
   doCache: boolean;
   /** Projetos e áreas (do índice do segundo cérebro ou da aba ProjetosAreas). */
   projetosAreas: ItemIndice[];
+  /** Resumo da última importação desta sessão (para a tela Revisar). */
+  ultimaImportacao: ResumoImportacao | null;
+}
+
+export interface ResumoImportacao {
+  importacaoId: string;
+  contaId: string;
+  faturaId: string | null;
+  linhas: number;
+  casados: number;
+  sugeridos: number;
+  novos: number;
+  ignorados: number;
+  ignoradasNoArquivo: number;
+  naoEncontrados: string[];
+  doc: string | null;
+  total?: number;
 }
 
 const CHAVE_IDS = 'fc.ids';
@@ -75,6 +100,7 @@ export class App {
       ids: lerIds(),
       doCache: false,
       projetosAreas: [],
+      ultimaImportacao: null,
     };
     window.addEventListener('online', () => void this.reenviar());
   }
@@ -277,7 +303,8 @@ export class App {
         });
         l = r.lancamentos[0];
       } else {
-        l = await this.ligarAFatura(l);
+        const faturaDada = extra.faturaId ? this.estado.base!.faturas.find((f) => f.id === extra.faturaId) : undefined;
+        l = faturaDada ? { ...l, fatura_id: faturaDada.id, data_caixa: faturaDada.data_vencimento } : await this.ligarAFatura(l);
         this.mudarLancamentos((ls) => [...ls, l]);
         await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
       }
@@ -318,7 +345,7 @@ export class App {
     const conta = base.contas.find((c) => c.id === novo.conta_id);
     // Compra no cartão que mudou de data ou de conta: vai para a fatura certa (SPEC 6.3).
     if (
-      conta?.tipo === 'cartao' && novo.tipo !== 'transferencia' && !novo.parcelamento_id &&
+      conta?.tipo === 'cartao' && novo.tipo !== 'transferencia' && !novo.parcelamento_id && !(novo.conciliado && novo.fatura_id) &&
       (!antes || antes.data_competencia !== novo.data_competencia || antes.conta_id !== novo.conta_id || !novo.fatura_id)
     ) {
       novo = await this.ligarAFatura({ ...novo, fatura_id: null });
@@ -467,6 +494,299 @@ export class App {
       this.tratarErro(e);
       throw e;
     }
+  }
+
+  // ---------- Importação (SPEC 8.2 a 8.5) ----------
+
+  private storage(): DriveStorage {
+    if (this.estado.modo === 'google') return new GoogleDriveStorage(this.google);
+    return (this.storageDemo ??= new MemoryStorage());
+  }
+  private storageDemo: MemoryStorage | null = null;
+
+  /** Lê o conteúdo de um arquivo ou texto colado. */
+  lerConteudo(p: { nome: string; texto: string; tipoConta: 'cartao' | 'corrente'; perfil?: PerfilCSV | null }):
+    | { tipo: 'lido'; lido: ArquivoLido; perfil?: PerfilCSV }
+    | { tipo: 'csv-sem-perfil'; linhas: string[][] } {
+    const nome = p.nome.toLowerCase();
+    if (nome.endsWith('.ofx') || /<OFX>/i.test(p.texto)) return { tipo: 'lido', lido: lerOFX(p.texto) };
+    if (nome.endsWith('.csv')) {
+      const linhas = separarCSV(p.texto);
+      const perfil = p.perfil ?? detectarPerfil(linhas[0] ?? [], this.perfisCSV());
+      if (!perfil) return { tipo: 'csv-sem-perfil', linhas };
+      return { tipo: 'lido', lido: lerCSV(linhas, perfil), perfil };
+    }
+    return { tipo: 'lido', lido: lerTexto(p.texto, { tipoConta: p.tipoConta, hoje: this.estado.hoje }) };
+  }
+
+  perfisCSV(): PerfilCSV[] {
+    const base = this.estado.base;
+    if (!base) return [];
+    return base.parametros
+      .filter((x) => x.chave === 'csv.perfil' && x.valor)
+      .map((x) => {
+        try {
+          return JSON.parse(x.valor!) as PerfilCSV;
+        } catch {
+          return null;
+        }
+      })
+      .filter((x): x is PerfilCSV => Boolean(x));
+  }
+
+  async salvarPerfilCSV(perfil: PerfilCSV) {
+    const linha = { chave: 'csv.perfil', escopo: perfil.nome, valor: JSON.stringify(perfil), vigente_desde: this.estado.hoje };
+    this.set({ base: { ...this.estado.base!, parametros: [...this.estado.base!.parametros, linha] } });
+    await this.escrever(() => this.repo!.inserir('Parametros', [linha]));
+  }
+
+  /** Conta lembrada para um identificador de conta do banco (OFX ACCTID). */
+  contaLembrada(contaExterna?: string): string | null {
+    if (!contaExterna || !this.estado.base) return null;
+    return lerParametro(this.estado.base.parametros, 'importacao.conta_externa', this.estado.hoje, contaExterna);
+  }
+
+  /** Guarda o arquivo original no Drive, com o nome padrão (SPEC 4.5 b). */
+  private async guardarOriginal(p: { conteudo: Blob; ext: string; mimeType: string; conta: Conta; competencia?: string; periodo?: string }) {
+    const pasta = this.estado.ids?.pasta_faturas ?? (this.estado.modo === 'demo' ? 'pasta_demo_faturas' : null);
+    if (!pasta) return null;
+    const ano = this.estado.hoje.slice(0, 4);
+    const storage = this.storage();
+    const pastaAno = await storage.obterOuCriarPasta(ano, pasta);
+    const nome =
+      p.conta.tipo === 'cartao'
+        ? `${this.estado.hoje} – Fatura – ${p.conta.nome} – ${p.competencia ?? this.estado.hoje.slice(0, 7)}.${p.ext}`
+        : `${this.estado.hoje} – Extrato – ${p.conta.nome} – ${p.periodo ?? this.estado.hoje.slice(0, 7)}.${p.ext}`;
+    return storage.enviarArquivo({ nome, mimeType: p.mimeType, conteudo: p.conteudo, paiId: pastaAno });
+  }
+
+  /**
+   * Importa um extrato ou fatura (SPEC 8.2): salva o original, registra em
+   * Importacoes, concilia (8.4) e grava casamentos e a fila de revisão.
+   */
+  async importar(p: {
+    lido: ArquivoLido | null; // null = PDF (só salva e liga)
+    contaId: string;
+    vencimento?: string | null;
+    original: { nome: string; ext: string; mimeType: string; conteudo: Blob };
+    lembrarContaExterna?: string;
+  }): Promise<ResumoImportacao> {
+    const base = this.estado.base;
+    if (!base || !this.repo) throw new Error('Os dados ainda não carregaram');
+    const conta = base.contas.find((c) => c.id === p.contaId);
+    if (!conta) throw new Error('Escolha a conta ou o cartão');
+    const agora = new Date().toISOString();
+    const linhas = p.lido?.linhas ?? [];
+
+    // Fatura importada (cartão).
+    let fatura: Fatura | null = null;
+    let faturaNova = false;
+    if (conta.tipo === 'cartao') {
+      const ciclo = cicloDaImportacao(conta.id, { vencimento: p.vencimento || p.lido?.vencimento, fim: p.lido?.fim, datas: linhas.map((l) => l.data) }, base.parametros);
+      if (ciclo) {
+        const r = obterFatura(base.faturas, conta.id, ciclo, this.estado.hoje, agora);
+        fatura = r.fatura;
+        faturaNova = r.nova;
+      }
+    }
+
+    // 1) Original no Drive (não bloqueia a importação se falhar).
+    let doc: string | null = null;
+    try {
+      const enviado = await this.guardarOriginal({
+        conteudo: p.original.conteudo, ext: p.original.ext, mimeType: p.original.mimeType, conta,
+        competencia: fatura?.competencia, periodo: p.lido?.fim?.slice(0, 7),
+      });
+      doc = enviado?.url ?? null;
+    } catch {
+      doc = null;
+    }
+
+    // 2) Conciliação.
+    const importacaoId = novoId('imp');
+    const r = conciliar(linhas, {
+      contaId: conta.id, contas: base.contas, lancamentos: base.lancamentos, regras: base.regras, recorrencias: base.recorrencias,
+      categorias: base.categorias, caixaEntrada: base.caixaEntrada, hoje: this.estado.hoje, importacaoId, fatura,
+      janelaDias: lerParametroNumero(base.parametros, 'conciliacao.janela_dias', this.estado.hoje, 5),
+      pessoas: lerPessoas(base.parametros, this.estado.hoje), agoraISO: agora,
+    });
+    const tipoArquivo = !p.lido ? 'pdf' : p.lido.formato;
+    const importacao = {
+      id: importacaoId, data: this.estado.hoje, conta_id: conta.id, tipo_arquivo: tipoArquivo, nome_arquivo: p.original.nome, doc: doc ?? '',
+      linhas_lidas: linhas.length, casados: r.casados.length, sugeridos: r.sugeridos, novos: r.novos, ignorados: r.ignorados,
+      fatura_id: fatura?.id ?? '', excluido: false, criado_em: agora, atualizado_em: agora,
+    };
+    if (fatura) {
+      fatura = { ...fatura, valor_importado: p.lido?.total ?? fatura.valor_importado ?? null, doc: doc ?? fatura.doc ?? null, atualizado_em: agora };
+    }
+
+    // 3) Estado local e planilha.
+    const casadosPorId = new Map(r.casados.map((l) => [l.id, l]));
+    this.set({
+      base: {
+        ...base,
+        faturas: fatura ? (faturaNova ? [...base.faturas, fatura] : base.faturas.map((f) => (f.id === fatura!.id ? fatura! : f))) : base.faturas,
+        lancamentos: base.lancamentos.map((l) => casadosPorId.get(l.id) ?? l),
+        caixaEntrada: [...base.caixaEntrada, ...r.caixa],
+        importacoes: [...base.importacoes, importacao],
+        parametros: p.lembrarContaExterna
+          ? [...base.parametros, { chave: 'importacao.conta_externa', escopo: p.lembrarContaExterna, valor: conta.id, vigente_desde: this.estado.hoje }]
+          : base.parametros,
+      },
+    });
+    await this.escrever(async () => {
+      if (fatura) {
+        if (faturaNova) await this.repo!.inserir('Faturas', [fatura as unknown as Registro]);
+        else await this.repo!.atualizar('Faturas', fatura as unknown as Registro);
+      }
+      await this.repo!.inserir('Importacoes', [importacao]);
+      if (r.casados.length) await this.repo!.atualizarVarios('Lancamentos', r.casados as unknown as Registro[]);
+      if (r.caixa.length) await this.repo!.inserir('CaixaEntrada', r.caixa as Registro[]);
+      if (p.lembrarContaExterna) {
+        await this.repo!.inserir('Parametros', [{ chave: 'importacao.conta_externa', escopo: p.lembrarContaExterna, valor: conta.id, vigente_desde: this.estado.hoje }]);
+      }
+    });
+    for (const id of new Set(r.casados.filter((l) => l.tipo === 'transferencia' && l.fatura_id).map((l) => l.fatura_id!))) {
+      await this.recalcularFatura(id);
+    }
+    const resumo: ResumoImportacao = {
+      importacaoId, contaId: conta.id, faturaId: fatura?.id ?? null, linhas: linhas.length, casados: r.casados.length,
+      sugeridos: r.sugeridos, novos: r.novos, ignorados: r.ignorados, ignoradasNoArquivo: p.lido?.ignoradas ?? 0,
+      naoEncontrados: r.naoEncontrados.map((l) => l.id), doc, total: p.lido?.total,
+    };
+    this.set({ ultimaImportacao: resumo });
+    return resumo;
+  }
+
+  private async atualizarCaixa(itens: RegistroGenerico[]) {
+    if (!itens.length) return;
+    const agora = new Date().toISOString();
+    const novos: RegistroGenerico[] = itens.map((i) => ({ ...i, atualizado_em: agora }));
+    const porId = new Map(novos.map((i) => [i.id, i]));
+    this.set({ base: { ...this.estado.base!, caixaEntrada: this.estado.base!.caixaEntrada.map((c) => porId.get(c.id) ?? c) } });
+    await this.escrever(() => this.repo!.atualizarVarios('CaixaEntrada', novos as Registro[]));
+  }
+
+  private contextoCaixa() {
+    const base = this.estado.base!;
+    return { contas: base.contas, categorias: base.categorias, regras: base.regras, pessoas: lerPessoas(base.parametros, this.estado.hoje), hoje: this.estado.hoje };
+  }
+
+  previaCaixa(item: RegistroGenerico) {
+    return previaCaixa(item, this.contextoCaixa());
+  }
+
+  /** Aceita um item da caixa de entrada: vira lançamento e o item fica "aceito". */
+  async aceitarCaixa(item: RegistroGenerico, ajustes: Partial<PreviaCaixa> = {}): Promise<Lancamento> {
+    const base = this.estado.base!;
+    const l = lancamentoDaCaixa(item, this.contextoCaixa(), ajustes);
+    const imp = base.importacoes.find((i) => i.id === item.importacao_id);
+    const faturaId = l.tipo !== 'transferencia' ? ((imp?.fatura_id as string) || null) : null;
+    const salvo = await this.lancar(l, { faturaId, regraId: previaCaixa(item, this.contextoCaixa()).regraId });
+    await this.atualizarCaixa([{ ...item, status: 'aceito', lancamento_id: salvo.id }]);
+    return salvo;
+  }
+
+  /** "Aceitar todos" (SPEC 8.4, item 3): grava de uma vez. */
+  async aceitarVarios(itens: RegistroGenerico[]): Promise<number> {
+    const base = this.estado.base!;
+    const ctx = this.contextoCaixa();
+    const lote: Lancamento[] = [];
+    const aceitos: RegistroGenerico[] = [];
+    const transferencias: RegistroGenerico[] = [];
+    let faturas = [...base.faturas];
+    const faturasNovas: Fatura[] = [];
+    for (const item of itens) {
+      if (item.tipo_sugerido === 'transferencia') {
+        transferencias.push(item);
+        continue;
+      }
+      let l: Lancamento;
+      try {
+        l = lancamentoDaCaixa(item, ctx);
+      } catch {
+        continue; // sem conta ou valor: fica para o usuário completar
+      }
+      const conta = base.contas.find((c) => c.id === l.conta_id);
+      if (conta?.tipo === 'cartao') {
+        const imp = base.importacoes.find((i) => i.id === item.importacao_id);
+        let f = faturas.find((x) => x.id === imp?.fatura_id);
+        if (!f) {
+          const ciclo = cicloDaCompra(conta.id, l.data_competencia, base.parametros);
+          if (ciclo) {
+            const r = obterFatura(faturas, conta.id, ciclo, this.estado.hoje);
+            f = r.fatura;
+            if (r.nova) {
+              faturas = [...faturas, f];
+              faturasNovas.push(f);
+            }
+          }
+        }
+        if (f) l = { ...l, fatura_id: f.id, data_caixa: f.data_vencimento, status: f.status === 'paga' ? 'realizado' : 'agendado' };
+      }
+      lote.push(l);
+      aceitos.push({ ...item, status: 'aceito', lancamento_id: l.id });
+    }
+    this.set({ base: { ...this.estado.base!, faturas, lancamentos: [...this.estado.base!.lancamentos, ...lote] } });
+    await this.escrever(async () => {
+      if (faturasNovas.length) await this.repo!.inserir('Faturas', faturasNovas as unknown as Registro[]);
+      if (lote.length) await this.repo!.inserir('Lancamentos', lote as unknown as Registro[]);
+    });
+    await this.atualizarCaixa(aceitos);
+    for (const t of transferencias) await this.aceitarCaixa(t).catch(() => {});
+    return lote.length + transferencias.length;
+  }
+
+  /** "É esse" (SPEC 8.4, item 2): atualiza o candidato com os dados do banco. */
+  async confirmarSugestao(item: RegistroGenerico) {
+    const base = this.estado.base!;
+    const c = base.lancamentos.find((l) => l.id === item.lancamento_id);
+    const conta = base.contas.find((x) => x.id === item.conta_id);
+    if (!c || !conta) return this.rejeitarSugestao(item);
+    const imp = base.importacoes.find((i) => i.id === item.importacao_id);
+    const fatura = base.faturas.find((f) => f.id === imp?.fatura_id) ?? null;
+    const q = String(item.quem ?? '');
+    const novo = atualizarComImportado(
+      c,
+      { data: String(item.data), descricao: String(item.descricao_original || item.texto || ''), valor: Number(item.valor), sentido: 'saida' },
+      {
+        chave: String(item.chave_dedupe ?? ''), conta, quem: q === 'pessoa1' || q === 'pessoa2' || q === 'casal' ? q : null, agora: new Date().toISOString(),
+        ctx: { contas: base.contas, hoje: this.estado.hoje, importacaoId: String(item.importacao_id ?? ''), fatura },
+      },
+    );
+    await this.editar(novo);
+    await this.atualizarCaixa([{ ...item, status: 'aceito', lancamento_id: c.id }]);
+  }
+
+  /** "Não, é outro": o item passa para a lista de novos. */
+  rejeitarSugestao(item: RegistroGenerico) {
+    return this.atualizarCaixa([{ ...item, lancamento_id: '' }]);
+  }
+
+  descartarCaixa(item: RegistroGenerico) {
+    return this.atualizarCaixa([{ ...item, status: 'descartado' }]);
+  }
+
+  /** Muda a categoria de um item antes de aceitar. */
+  categorizarCaixa(item: RegistroGenerico, categoria: string, subcategoria: string | null) {
+    return this.atualizarCaixa([{ ...item, categoria, subcategoria: subcategoria ?? '' }]);
+  }
+
+  /** "Criar regra para 'PADRAO'?" (SPEC 8.4, item 4). */
+  async criarRegra(r: { padrao: string; descricao?: string; categoria: string; subcategoria?: string | null; contaId?: string | null }) {
+    const agora = new Date().toISOString();
+    const regra = {
+      id: novoId('reg'), padrao: r.padrao, conta_id: r.contaId ?? '', descricao: r.descricao ?? '', categoria: r.categoria,
+      subcategoria: r.subcategoria ?? '', natureza: '', quem: '', recorrencia_id: '', prioridade: 0, vezes_usada: 0, ativa: true,
+      excluido: false, criado_em: agora, atualizado_em: agora,
+    };
+    this.set({ base: { ...this.estado.base!, regras: [...this.estado.base!.regras, regra] } });
+    await this.escrever(() => this.repo!.inserir('Regras', [regra]));
+    // Aplica a regra nova aos itens pendentes que ela pega.
+    const pendentes = this.estado.base!.caixaEntrada.filter(
+      (c) => c.status === 'novo' && !c.lancamento_id && regraCasa(r.padrao, String(c.texto ?? '')) && c.tipo_sugerido !== 'transferencia',
+    );
+    await this.atualizarCaixa(pendentes.map((c) => ({ ...c, categoria: r.categoria, subcategoria: r.subcategoria ?? '' })));
   }
 
   async reenviar() {

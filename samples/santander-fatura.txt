@@ -1,0 +1,61 @@
+Olá, Alex! Esta é a fatura do seu cartão EXEMPLO
+MASTERCARD contendo compras e pagamentos realizados
+até 28/10.
+Opções de Pagamento até a Data de Vencimento
+1 Pagamento Total R$1.010,54
+ALEX EXEMPLO - 1111 XXXX XXXX 1111
+Total a Pagar
+R$ 1.010,54
+Vencimento
+05/11/2026
+Histórico de Faturas Pagamento Período das compras
+NOV. R$ 1.010,54 Esta Fatura 29/09/26 a 28/10/26
+2/4
+Detalhamento da Fatura
+ALEX EXEMPLO - 1111 XXXX XXXX 1111
+Pagamento e Demais Créditos
+Compra Data Descrição Parcela R$ US$
+03/09 LOCADORA EXEMPLO -0,04
+05/10 DEB AUTOM DE FATURA EM C/ -900,00
+Parcelamentos
+Compra Data Descrição Parcela R$ US$
+1 03/09 LOCADORA EXEMPLO 02/06 60,00
+Despesas
+Compra Data Descrição Parcela R$ US$
+3 07/10 METRO EXEMPLO 7,90
+3 08/10 METRO EXEMPLO 7,90
+VALOR TOTAL 75,80 0,00
+@ ALEX EXEMPLO - 2222 XXXX XXXX 2222
+Parcelamentos
+Compra Data Descrição Parcela R$ US$
+2 09/12 HOTEL EXEMPLO 11/12 25,00
+12/10 PET SHOP EXEMPLO 01/03 21,49
+Despesas
+Compra Data Descrição Parcela R$ US$
+03/10 DL*MUSICA EXEMPLO 31,90
+2 08/10 PB*REFEICAO EXEMPLO 218,87
+VALOR TOTAL 297,26 0,00
+SAM EXEMPLO - 3333 XXXX XXXX 3333
+Pagamento e Demais Créditos
+Compra Data Descrição Parcela R$ US$
+28/08 PET EXEMPLO -0,04
+Parcelamentos
+Compra Data Descrição Parcela R$ US$
+3 13/02 BRECHO EXEMPLO 09/10 36,90
+3 20/10 LOJA EXEMPLO 01/02 69,99
+Despesas
+Compra Data Descrição Parcela R$ US$
+27/09 IFD*IFOOD CLUB 7,95
+3 29/09 METRO EXEMPLO 7,90
+3/4
+Detalhamento da Fatura
+Despesas
+Compra Data Descrição Parcela R$ US$ 3 04/10 RESTAURANTE EXEMPLO 308,40 3 07/10 CAFE EXEMPLO 56,10 3 08/10 METRO EXEMPLO 7,90 3 14/10 SUPERMERCADO EXEMPLO 69,94 2 15/10 DL *UBERRIDES 16,98 3 26/10 RESTAURANTE DOIS 55,50
+VALOR TOTAL 627,03 0,00
+Resumo da Fatura
+Descrição R$ US$
+Saldo Anterior 900,00
+(+) Total Despesas/Débitos no Brasil 1.010,62
+(-) Total de pagamentos 900,00
+(-) Total de créditos 0,08
+(=) Saldo Desta Fatura 1.010,54

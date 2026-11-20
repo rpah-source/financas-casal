@@ -539,3 +539,17 @@ button.fatura > span { display: block; }
 .alerta-ambar { display: block; margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: var(--atencao-fundo); color: var(--atencao); font-size: 14px; }
 .botao-texto { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
 .info-fatura { padding: 12px 16px; }
+
+/* M5: importação e revisão */
+.botao-arquivo { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.botao-arquivo input { position: absolute; inset: 0; opacity: 0; font-size: 16px; cursor: pointer; }
+.campo-texto { width: 100%; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 12px; font: inherit; font-size: 16px; background: #fff; resize: vertical; }
+.contadores { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.item-novo { display: flex; gap: 8px; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border-top: 1px solid var(--borda); }
+.item-novo:first-child { border-top: 0; }
+.acoes-novo { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.acoes-novo .botao-icone { font-size: 18px; color: var(--destaque); }
+.chip-pequeno { min-height: 32px; padding: 4px 10px; font-size: 13px; margin-top: 4px; align-self: flex-start; }
+.chip-alerta { border-color: #efd9ad; background: var(--atencao-fundo); color: var(--atencao); }
+.topo-tela .botao-link { margin-left: auto; }
+.acoes-novo > div { display: flex; }

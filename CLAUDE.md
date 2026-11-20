@@ -23,6 +23,7 @@ src/repo/      FonteTabelas (MemoriaTabelas | SheetsTabelas) + RepositorioPlanil
 src/storage/   DriveStorage: MemoryStorage | GoogleDriveStorage
 src/google/    login (GIS), Picker, cliente HTTP
 src/bootstrap/ criação da planilha base
+src/domain/importacao/  leitores OFX/CSV/texto e conciliação (8.2–8.4); exemplos anonimizados em samples/
 src/demo/      dados fictícios do modo demonstração (viram uma planilha em memória)
 src/pwa/       registro do service worker
 src/config.ts  Client ID e chave de API (públicos)

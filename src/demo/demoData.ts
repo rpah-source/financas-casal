@@ -18,7 +18,7 @@ export interface DadosDemo {
 export function gerarDadosDemo(hoje: string): DadosDemo {
   const contas: Conta[] = [
     { id: 'cta_demo_azul', nome: 'Conta Azul', apelidos: ['azul', 'pix'], tipo: 'corrente', saldo_inicial: 2500, data_saldo_inicial: somarDias(hoje, -60), cor: '#3B6EA8', ativa: true, ordem: 1 },
-    { id: 'cta_demo_verde', nome: 'Cartão Verde', apelidos: ['verde'], tipo: 'cartao', saldo_inicial: 0, data_saldo_inicial: somarDias(hoje, -60), cor: '#2E6B5A', ativa: true, ordem: 2 },
+    { id: 'cta_demo_verde', nome: 'Cartão Verde', apelidos: ['verde'], tipo: 'cartao', conta_pagamento_id: 'cta_demo_azul', finais_cartao: '1111:pessoa1,3333:pessoa2', saldo_inicial: 0, data_saldo_inicial: somarDias(hoje, -60), cor: '#2E6B5A', ativa: true, ordem: 2 },
     { id: 'cta_demo_vale', nome: 'Vale', apelidos: ['vale'], tipo: 'prepago', saldo_inicial: 600, data_saldo_inicial: somarDias(hoje, -60), cor: '#9A5B00', ativa: true, ordem: 3 },
   ];
 

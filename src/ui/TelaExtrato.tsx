@@ -22,7 +22,7 @@ function lerFiltros(mesAtual: string): FiltroExtrato {
 }
 
 /** Extrato com filtros (SPEC 10.3). */
-export function TelaExtrato() {
+export function TelaExtrato({ importar }: { importar: () => void }) {
   const [estado, app] = useApp();
   const { base, hoje } = estado;
   const toast = useToast();
@@ -78,6 +78,7 @@ export function TelaExtrato() {
     <section>
       <div class="topo-tela">
         <h1 class="titulo-tela">Extrato</h1>
+        <button type="button" class="botao-link" onClick={importar}>Importar</button>
         <button type="button" class="botao-icone" aria-label="Buscar" aria-pressed={buscando} onClick={() => setBuscando(!buscando)}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
         </button>

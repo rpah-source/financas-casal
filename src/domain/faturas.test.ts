@@ -131,3 +131,15 @@ describe('recalcular fatura (pagar, desfazer pagamento)', async () => {
     expect(r2.lancamentosAlterados[0]).toMatchObject({ status: 'agendado', data_caixa: '2026-12-07' });
   });
 });
+
+describe('fatura da importação', async () => {
+  const { cicloDaImportacao } = await import('./faturas');
+  it('pelo vencimento informado (texto da fatura)', () => {
+    expect(cicloDaImportacao('cta_verde', { vencimento: '2026-11-07', datas: [] }, params)).toEqual({
+      competencia: '2026-11', data_fechamento: '2026-10-29', data_vencimento: '2026-11-07',
+    });
+  });
+  it('pelo fim do período do OFX (fechamento mais próximo)', () => {
+    expect(cicloDaImportacao('cta_verde', { fim: '2026-10-30', datas: [] }, params)?.competencia).toBe('2026-11');
+  });
+});

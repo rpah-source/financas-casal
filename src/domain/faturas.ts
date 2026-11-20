@@ -323,3 +323,32 @@ export function recalcularFatura(
   const novaFatura = status === fatura.status ? fatura : { ...fatura, status, atualizado_em: agoraISO };
   return { fatura: novaFatura, lancamentosAlterados: alterados };
 }
+
+/**
+ * Fatura de uma importação de cartão (SPEC 8.2, item 3): pelo vencimento
+ * informado ou, sem ele, pelo fim do período do arquivo (fechamento mais próximo).
+ */
+export function cicloDaImportacao(
+  cartaoId: string,
+  p: { vencimento?: DataISO; fim?: DataISO; datas: DataISO[] },
+  parametros: Parametro[],
+): CicloFatura | null {
+  if (p.vencimento) {
+    const fech = lerParametroNumero(parametros, 'cartao.fechamento_dia', p.vencimento, 0, cartaoId);
+    const venc = Number(p.vencimento.slice(8, 10));
+    const { ano, mes } = partesData(p.vencimento);
+    let data_fechamento: DataISO;
+    if (fech) {
+      const m = venc > fech ? { ano, mes } : somarMes(ano, mes, -1);
+      data_fechamento = diaNoMes(m.ano, m.mes, fech);
+    } else {
+      const d = new Date(Date.UTC(ano, mes - 1, venc - 7));
+      data_fechamento = montarData(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    }
+    return { competencia: p.vencimento.slice(0, 7), data_fechamento, data_vencimento: p.vencimento };
+  }
+  const ref = p.fim ?? [...p.datas].sort().at(-1);
+  if (!ref) return null;
+  const opcoes = [-1, 0].map((d) => cicloDaCompra(cartaoId, ref, parametros, d)).filter((c): c is CicloFatura => Boolean(c));
+  return opcoes.sort((a, b) => Math.abs(diffDias(ref, a.data_fechamento)) - Math.abs(diffDias(ref, b.data_fechamento)))[0] ?? null;
+}

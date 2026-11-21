@@ -28,12 +28,12 @@ describe('criar lançamento', () => {
     expect(criarLancamento({ ...base, data: '2026-11-25' }, ctx).status).toBe('agendado');
   });
 
-  it('transferência fica fora das categorias', () => {
+  it('transferência ganha a categoria gerencial "Transferências" (fora das análises)', () => {
     const l = criarLancamento(
       { tipo: 'transferencia', valor: 100, descricao: '', contaId: 'cta_azul', contaDestinoId: 'cta_verde', data: '2026-11-19', quem: 'casal', categoria: 'Lazer' },
       ctx,
     );
-    expect(l).toMatchObject({ natureza: 'nenhuma', categoria: null, conta_destino_id: 'cta_verde' });
+    expect(l).toMatchObject({ natureza: 'nenhuma', categoria: 'Transferências', subcategoria: 'Pagamento de fatura', conta_destino_id: 'cta_verde' });
   });
 
   it('recusa valor zero e transferência sem destino', () => {
@@ -46,6 +46,22 @@ describe('criar lançamento', () => {
     const d = duplicarLancamento(l, ctx);
     expect(d.id).not.toBe(l.id);
     expect(d.data_competencia).toBe('2026-11-19');
+  });
+});
+
+describe('categorias por tipo', async () => {
+  const { categoriasDoTipo, aplicarRegras } = await import('./regras');
+  it('separa gastos, entradas e transferências', () => {
+    const nomes = (t: string) => [...new Set(categoriasDoTipo(categorias, t).map((c) => c.categoria))];
+    expect(nomes('receita')).toEqual(['Salário', 'Benefício', 'Rendimentos', 'Estorno', 'Outras entradas']);
+    expect(nomes('transferencia')).toEqual(['Transferências']);
+    expect(nomes('despesa')).toContain('Presentes');
+    expect(nomes('despesa')).toContain('Doações');
+    expect(nomes('despesa')).not.toContain('Salário');
+  });
+  it('a sugestão pelo nome só usa categorias do tipo do lançamento', () => {
+    expect(aplicarRegras('estorno da loja', [], categorias, null, 'receita').categoria).toBe('Estorno');
+    expect(aplicarRegras('estorno da loja', [], categorias, null, 'despesa').categoria).toBeNull();
   });
 });
 

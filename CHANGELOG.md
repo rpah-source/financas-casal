@@ -1,5 +1,11 @@
 # Changelog
 
+## Categorias por tipo — 21/11/2026
+- Categorias separadas em **gastos**, **entradas** e **transferências** (pagamento de fatura, entre contas). Ao lançar um gasto só aparecem categorias de gasto; numa entrada, só de entrada.
+- Novas: "Presentes" e "Doações" (separadas), "Rendimentos" e "Outras entradas".
+- Transferências ganham a categoria "Transferências › Pagamento de fatura" ou "Entre contas próprias", sem entrar nas análises.
+- Filtro de categoria do Extrato agrupado por tipo.
+
 ## M5.2 · Importar o histórico — 21/11/2026
 - Tela Importar mostra o nome do arquivo escolhido (ou "Texto colado").
 - Importar: aviso claro quando falta escolher a conta; o app lembra a conta do CSV do Santander pelo cabeçalho (sem guardar o número da conta).

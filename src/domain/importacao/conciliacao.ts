@@ -231,7 +231,7 @@ export function conciliar(linhas: LinhaImportada[], ctx: ContextoConciliacao): R
       .sort(porProximidade)[0];
     if (sugestao) usados.add(sugestao.id);
 
-    const sug = transf ? null : aplicarRegras(l.descricao, ctx.regras, ctx.categorias, conta.id);
+    const sug = transf ? null : aplicarRegras(l.descricao, ctx.regras, ctx.categorias, conta.id, tipo === 'emprestimo' ? 'receita' : tipo);
     resultado.caixa.push({
       id: novoId('cxe'),
       recebido_em: agora,

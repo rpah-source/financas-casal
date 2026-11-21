@@ -129,6 +129,7 @@ export const ABAS: Aba[] = [
     colunas: [
       t('categoria', { obrigatorio: true }), t('subcategoria'), e('natureza_padrao', ENUMS.natureza),
       t('area_padrao'), n('orcamento_mensal'), b('ativa', true), n('ordem'),
+      e('tipo', ['despesa', 'receita', 'transferencia'], { padrao: 'despesa' }),
     ],
   },
   {

@@ -55,7 +55,6 @@ export function previaCaixa(item: RegistroGenerico, ctx: ContextoCaixa): PreviaC
   const contaItem = acharConta(String(item.conta_id || item.conta || ''), ctx.contas);
   const conta = contaItem ?? ativas.find((c) => c.id === parse?.contaId);
   const descBase = importado ? extrairParcela(texto).descricao : parse?.descricao || texto;
-  const sug = aplicarRegras(descBase, ctx.regras, ctx.categorias, conta?.id);
   const sugerido = String(item.tipo_sugerido || '');
   const emprestimo = sugerido === 'emprestimo';
   const entrada = sugerido === 'transferencia_entrada';
@@ -76,6 +75,7 @@ export function previaCaixa(item: RegistroGenerico, ctx: ContextoCaixa): PreviaC
       contaDestinoId = destinoTransferencia({ descricao: texto, valor: Number(item.valor) }, conta.id, ctx.contas);
     }
   }
+  const sug = aplicarRegras(descBase, ctx.regras, ctx.categorias, conta?.id, tipo);
   const quemItem = String(item.quem ?? '').trim();
   const quem: Pessoa =
     quemItem === 'pessoa1' || quemItem === 'pessoa2' || quemItem === 'casal'
@@ -92,6 +92,7 @@ export function previaCaixa(item: RegistroGenerico, ctx: ContextoCaixa): PreviaC
     contaId,
     contaDestinoId,
     descricao: (sug.fonte === 'regra' && sug.descricao) || descBase,
+    // Transferência: a categoria "Transferências" é posta ao criar o lançamento.
     categoria: tipo === 'transferencia' ? null : (item.categoria as string) || sug.categoria || (tipo === 'despesa' ? 'Sem categoria' : null),
     subcategoria: tipo === 'transferencia' ? null : (item.subcategoria as string) || sug.subcategoria || null,
     quem,

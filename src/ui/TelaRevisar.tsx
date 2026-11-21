@@ -205,6 +205,7 @@ export function TelaRevisar({ voltar, importar }: { voltar: () => void; importar
       {categorizando && (
         <EscolherCategoria
           categorias={base.categorias}
+          tipo={app.previaCaixa(categorizando).tipo}
           fechar={() => setCategorizando(null)}
           aoEscolher={(cat, sub) => {
             const item = categorizando;

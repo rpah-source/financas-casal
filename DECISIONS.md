@@ -95,3 +95,6 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D76 · Conta lembrada sem número:** a conta do banco (OFX `ACCTID` ou agência/conta do cabeçalho do CSV) é guardada só como resumo (hash FNV-1a, `h1a2b3c4d`) em `importacao.conta_externa`; o número nunca vai para a planilha.
 - **D77 · Fatura antiga já paga:** ao importar fatura com vencimento no passado, a tela oferece "Esta fatura já foi paga" (marcado): a fatura fica `paga` e as compras entram realizadas, sem precisar do pagamento.
 - **D78 · Pagamento sem valor igual** só quita fatura com vencimento a até 10 dias da data do pagamento; senão fica transferência sem fatura (pagamento antigo não quita a fatura atual).
+
+## Próximas versões (pós-M5)
+- **D79 · Categorias com tipo:** nova coluna `tipo` em Categorias (`despesa` · `receita` · `transferencia`, padrão `despesa`). Telas de escolha, sugestões por nome e filtro do Extrato mostram só as do tipo do lançamento. Padrões novos: "Presentes" e "Doações" separados, "Rendimentos" e "Outras entradas" (receitas) e "Transferências › Pagamento de fatura / Entre contas próprias" (gerencial). Transferência recebe essa categoria ao ser criada (se existir na planilha); continua fora de semanada, fotografia e categorias de gasto. Categorias pessoais (ex.: repasse para a parceira) ficam só na planilha do usuário.

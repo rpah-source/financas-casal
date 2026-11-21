@@ -95,7 +95,7 @@ function Formulario(p: {
 
   const tipo: TipoLancamento = aba;
   const sugestao: Sugestao = useMemo(
-    () => (aba === 'transferencia' ? SEM_SUGESTAO : aplicarRegras(onde, base.regras, base.categorias, contaId)),
+    () => (aba === 'transferencia' ? SEM_SUGESTAO : aplicarRegras(onde, base.regras, base.categorias, contaId, aba)),
     [onde, base.regras, base.categorias, contaId, aba],
   );
   const categoria = manual?.categoria ?? sugestao.categoria;
@@ -150,7 +150,7 @@ function Formulario(p: {
 
   function escolherRecente(l: Lancamento) {
     setOnde(l.descricao ?? '');
-    if (l.categoria && !aplicarRegras(l.descricao ?? '', base.regras, base.categorias).categoria) {
+    if (l.categoria && !aplicarRegras(l.descricao ?? '', base.regras, base.categorias, null, l.tipo).categoria) {
       setManual({ categoria: l.categoria, subcategoria: l.subcategoria ?? null, natureza: l.natureza });
     } else setManual(null);
     if (!centavos) setCentavos(Math.round(l.valor * 100));
@@ -484,6 +484,7 @@ function Formulario(p: {
       {escolhendoCat && (
         <EscolherCategoria
           categorias={base.categorias}
+          tipo={tipo}
           fechar={() => setEscolhendoCat(false)}
           aoEscolher={(cat, sub) => {
             const c = base.categorias.find((x) => x.categoria === cat && (x.subcategoria ?? null) === sub);

@@ -1,6 +1,7 @@
 import { createContext, type ComponentChildren } from 'preact';
 import { useContext, useEffect, useRef } from 'preact/hooks';
 import type { Categoria, Pessoa, StatusLancamento } from '../domain/types';
+import { categoriasDoTipo } from '../domain/regras';
 
 // ---------- Toast ("Lançado · Desfazer", SPEC 10.2) ----------
 
@@ -100,15 +101,17 @@ export function Chips<T extends string>(p: {
 
 export function EscolherCategoria(p: {
   categorias: Categoria[];
+  /** Só mostra as categorias deste tipo de lançamento (gasto, entrada ou transferência). */
+  tipo?: string | null;
   fechar: () => void;
   aoEscolher: (categoria: string, subcategoria: string | null) => void;
 }) {
   const grupos = new Map<string, Categoria[]>();
-  for (const c of p.categorias.filter((c) => c.ativa !== false).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))) {
+  for (const c of categoriasDoTipo(p.categorias, p.tipo).filter((c) => c.ativa !== false).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))) {
     grupos.set(c.categoria, [...(grupos.get(c.categoria) ?? []), c]);
   }
   return (
-    <Folha titulo="Categoria" fechar={p.fechar}>
+    <Folha titulo={p.tipo === 'receita' ? 'Categoria da entrada' : p.tipo === 'transferencia' ? 'Tipo de transferência' : 'Categoria do gasto'} fechar={p.fechar}>
       {[...grupos].map(([cat, itens]) => (
         <div key={cat} class="grupo-categoria">
           <button type="button" class="categoria-principal" onClick={() => p.aoEscolher(cat, null)}>{cat}</button>

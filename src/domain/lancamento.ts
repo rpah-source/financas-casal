@@ -1,4 +1,5 @@
 import { naturezaPadrao } from './base';
+import { CATEGORIA_TRANSFERENCIA, SUB_ENTRE_CONTAS, SUB_PAGAMENTO_FATURA } from './categoriasPadrao';
 import { novoId } from './ids';
 import { statusInicial } from './status';
 import type { Categoria, Conta, DataISO, Lancamento, Natureza, Origem, Pessoa, StatusLancamento, TipoLancamento } from './types';
@@ -37,6 +38,13 @@ export function criarLancamento(
   const agora = ctx.agoraISO ?? new Date().toISOString();
   const tipoConta = ctx.contas.find((c) => c.id === n.contaId)?.tipo;
   const transferencia = n.tipo === 'transferencia';
+  // Transferência gerencial ganha a categoria "Transferências" quando ela existe na planilha.
+  const destinoCartao = ctx.contas.find((c) => c.id === n.contaDestinoId)?.tipo === 'cartao';
+  const subTransf = destinoCartao ? SUB_PAGAMENTO_FATURA : SUB_ENTRE_CONTAS;
+  const catTransf = transferencia
+    ? ctx.categorias.find((c) => c.categoria === CATEGORIA_TRANSFERENCIA && c.subcategoria === subTransf) ??
+      ctx.categorias.find((c) => c.categoria === CATEGORIA_TRANSFERENCIA && !c.subcategoria)
+    : undefined;
   return {
     id: novoId('lan'),
     tipo: n.tipo,
@@ -48,8 +56,8 @@ export function criarLancamento(
     data_caixa: n.data,
     conta_id: n.contaId,
     conta_destino_id: transferencia ? n.contaDestinoId! : null,
-    categoria: transferencia ? null : n.categoria || null,
-    subcategoria: transferencia ? null : n.subcategoria || null,
+    categoria: transferencia ? catTransf?.categoria ?? null : n.categoria || null,
+    subcategoria: transferencia ? catTransf?.subcategoria ?? null : n.subcategoria || null,
     natureza: transferencia
       ? 'nenhuma'
       : n.natureza || naturezaPadrao(ctx.categorias, n.categoria ?? null, n.subcategoria ?? null, n.tipo),

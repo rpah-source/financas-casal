@@ -69,8 +69,12 @@ export interface Lancamento extends Meta {
   observacao?: string | null;
 }
 
+/** Tipo da categoria: gasto, entrada ou transferência gerencial (DECISIONS D79). */
+export type TipoCategoria = 'despesa' | 'receita' | 'transferencia';
+
 export interface Categoria {
   categoria: string;
+  tipo?: TipoCategoria;
   subcategoria: string | null;
   natureza_padrao: Natureza | null;
   area_padrao: string | null;

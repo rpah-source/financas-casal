@@ -45,7 +45,11 @@ export function TelaExtrato({ importar }: { importar: () => void }) {
 
   const pessoas = lerPessoas(base.parametros, hoje);
   const contaPorId = new Map(base.contas.map((c) => [c.id, c]));
-  const categorias = [...new Set(base.categorias.filter((c) => c.ativa !== false).map((c) => c.categoria))];
+  const nomeTipo: Record<string, string> = { despesa: 'Gastos', receita: 'Entradas', transferencia: 'Transferências' };
+  const categoriasAgrupadas: Array<[string, string, string]> = [];
+  for (const c of base.categorias.filter((c) => c.ativa !== false)) {
+    if (!categoriasAgrupadas.some(([v]) => v === c.categoria)) categoriasAgrupadas.push([c.categoria, c.categoria, nomeTipo[c.tipo ?? 'despesa']]);
+  }
   const { total, itens } = totalFiltro(lista);
   const { ano, mes } = partesData(`${filtro.mes}-01`);
 
@@ -107,7 +111,7 @@ export function TelaExtrato({ importar }: { importar: () => void }) {
         <FiltroSelect rotulo="Conta" valor={filtro.contaId ?? ''} aoMudar={(v) => mudar({ contaId: v })}
           opcoes={base.contas.map((c) => [c.id, c.nome])} />
         <FiltroSelect rotulo="Categoria" valor={filtro.categoria ?? ''} aoMudar={(v) => mudar({ categoria: v })}
-          opcoes={categorias.map((c) => [c, c])} />
+          opcoes={categoriasAgrupadas} />
         <FiltroSelect rotulo="Natureza" valor={filtro.natureza ?? ''} aoMudar={(v) => mudar({ natureza: v as FiltroExtrato['natureza'] })}
           opcoes={Object.entries(NOME_NATUREZA)} />
         <FiltroSelect rotulo="Status" valor={filtro.status ?? ''} aoMudar={(v) => mudar({ status: v as FiltroExtrato['status'] })}
@@ -168,7 +172,8 @@ export function TelaExtrato({ importar }: { importar: () => void }) {
   );
 }
 
-function FiltroSelect(p: { rotulo: string; valor: string; opcoes: Array<[string, string]>; aoMudar: (v: string) => void }) {
+function FiltroSelect(p: { rotulo: string; valor: string; opcoes: Array<[string, string] | [string, string, string]>; aoMudar: (v: string) => void }) {
+  const grupos = [...new Set(p.opcoes.map((o) => o[2] ?? ''))];
   const ativo = Boolean(p.valor);
   const texto = ativo ? p.opcoes.find(([v]) => v === p.valor)?.[1] ?? p.rotulo : p.rotulo;
   return (
@@ -176,9 +181,15 @@ function FiltroSelect(p: { rotulo: string; valor: string; opcoes: Array<[string,
       <span>{texto} ▾</span>
       <select aria-label={p.rotulo} value={p.valor} onChange={(e) => p.aoMudar((e.target as HTMLSelectElement).value)}>
         <option value="">{p.rotulo}: todos</option>
-        {p.opcoes.map(([v, t]) => (
-          <option key={v} value={v}>{t}</option>
-        ))}
+        {grupos.map((g) =>
+          g ? (
+            <optgroup key={g} label={g}>
+              {p.opcoes.filter((o) => o[2] === g).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </optgroup>
+          ) : (
+            p.opcoes.filter((o) => !o[2]).map(([v, t]) => <option key={v} value={v}>{t}</option>)
+          ),
+        )}
       </select>
     </label>
   );

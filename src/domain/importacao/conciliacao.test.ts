@@ -54,7 +54,7 @@ describe('teste 6: "PAGAMENTO DE FATURA" importado vira transferência', () => {
     const item = r.caixa[0];
     expect(item.tipo_sugerido).toBe('transferencia');
     const l = lancamentoDaCaixa(item, { contas, categorias, regras: [], pessoas, hoje: HOJE });
-    expect(l).toMatchObject({ tipo: 'transferencia', conta_id: 'cta_azul', conta_destino_id: 'cta_verde', categoria: null, natureza: 'nenhuma' });
+    expect(l).toMatchObject({ tipo: 'transferencia', conta_id: 'cta_azul', conta_destino_id: 'cta_verde', categoria: 'Transferências', subcategoria: 'Pagamento de fatura', natureza: 'nenhuma' });
     expect(gastoDaSemana([l], semanaDe(HOJE))).toBe(0);
     const f = fotografiaDoMes({ mes: '2026-11', lancamentos: [l], recorrencias: [], parametros: [] as Parametro[] });
     expect(f.entradas.total + f.variavel.total + f.fixa.total).toBe(0);

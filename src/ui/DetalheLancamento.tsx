@@ -163,6 +163,7 @@ export function DetalheLancamento({ l, fechar }: { l: Lancamento; fechar: () => 
       {escolhendoCat && (
         <EscolherCategoria
           categorias={base.categorias}
+          tipo={e.tipo}
           fechar={() => setEscolhendoCat(false)}
           aoEscolher={(cat, sub) => {
             const c = base.categorias.find((x) => x.categoria === cat && (x.subcategoria ?? null) === sub);

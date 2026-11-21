@@ -34,11 +34,18 @@ export function regraCasa(padrao: string, texto: string): boolean {
   return normalizar(texto).includes(normalizar(p));
 }
 
+/** Categorias que servem para um tipo de lançamento (gasto, entrada, transferência). */
+export function categoriasDoTipo(categorias: Categoria[], tipo?: string | null): Categoria[] {
+  if (!tipo || tipo === 'ajuste') return categorias;
+  return categorias.filter((c) => (c.tipo ?? 'despesa') === tipo);
+}
+
 export function aplicarRegras(
   texto: string,
   regras: RegistroGenerico[],
   categorias: Categoria[],
   contaId?: string | null,
+  tipo?: string | null,
 ): Sugestao {
   if (!texto.trim()) return SEM_SUGESTAO;
   const candidatas = regras
@@ -64,7 +71,7 @@ export function aplicarRegras(
       fonte: 'regra',
     };
   }
-  return porNomeDaCategoria(texto, categorias);
+  return porNomeDaCategoria(texto, categoriasDoTipo(categorias, tipo));
 }
 
 /**

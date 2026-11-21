@@ -1,5 +1,5 @@
 import { naturezaPadrao } from './base';
-import { CATEGORIA_TRANSFERENCIA, SUB_ENTRE_CONTAS, SUB_PAGAMENTO_FATURA } from './categoriasPadrao';
+import { CATEGORIA_EMPRESTIMO, CATEGORIA_TRANSFERENCIA, SUB_ENTRE_CONTAS, SUB_PAGAMENTO_FATURA } from './categoriasPadrao';
 import { novoId } from './ids';
 import { statusInicial } from './status';
 import type { Categoria, Conta, DataISO, Lancamento, Natureza, Origem, Pessoa, StatusLancamento, TipoLancamento } from './types';
@@ -68,7 +68,8 @@ export function criarLancamento(
     observacao: n.observacao || null,
     origem: n.origem ?? 'manual',
     conciliado: false,
-    excluir_da_analise: false,
+    // Empréstimo recebido entra no saldo, mas não é renda (SPEC 7).
+    excluir_da_analise: n.tipo === 'receita' && n.categoria === CATEGORIA_EMPRESTIMO,
     excluido: false,
     criado_em: agora,
     atualizado_em: agora,

@@ -145,13 +145,15 @@ export function gerarParcelasDivida(p: {
     const restantes = Number(d.parcelas_restantes);
     if (!(valor > 0) || !(dia >= 1) || !(restantes > 0) || !d.conta_pagamento_id) continue;
     const daDivida = p.lancamentos.filter((l) => l.divida_id === d.id && !l.excluido);
+    // "Parcelas que faltam" contam a partir do cadastro: não cria parcela com vencimento antes dele.
+    const desde = String(d.criado_em ?? '').slice(0, 10);
     // Parcelas futuras ainda não pagas já contam no limite de restantes.
     let disponiveis = restantes - daDivida.filter((l) => l.status !== 'realizado' && l.status !== 'cancelado' && l.data_competencia >= de).length;
     let { ano, mes } = partesData(de);
     while (disponiveis > 0) {
       const data = montarData(ano, mes, Math.min(dia, diasNoMes(ano, mes)));
       if (data > ate) break;
-      if (!daDivida.some((l) => l.data_competencia.slice(0, 7) === data.slice(0, 7))) {
+      if (data >= (desde || de) && !daDivida.some((l) => l.data_competencia.slice(0, 7) === data.slice(0, 7))) {
         novos.push({
           id: novoId('lan'),
           tipo: 'despesa',

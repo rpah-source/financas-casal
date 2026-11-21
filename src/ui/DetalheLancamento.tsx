@@ -6,6 +6,9 @@ import { lerNumero } from '../domain/valores';
 import { EscolherCategoria, Folha, NOME_NATUREZA, NOME_ORIGEM, NOME_STATUS, useToast } from './comum';
 import { useApp } from './useApp';
 import { nomeFatura } from './Fatura';
+import { Anexos } from './Anexos';
+import { BlocoEmprestimo } from './Divida';
+import { CATEGORIA_EMPRESTIMO } from '../domain/categoriasPadrao';
 import { ddmm } from '../domain/dates';
 
 /** Detalhe e edição de um lançamento (SPEC 10.3). */
@@ -34,8 +37,13 @@ export function DetalheLancamento({ l, fechar }: { l: Lancamento; fechar: () => 
     }
     const proj = estado.projetosAreas.find((x) => x.nome === e.projeto_area);
     try {
+      // Anexos e dívida podem ter mudado enquanto a folha estava aberta.
+      const atual = estado.base!.lancamentos.find((x) => x.id === l.id) ?? l;
       await app.editar({
         ...e,
+        docs: atual.docs,
+        divida_id: atual.divida_id,
+        excluir_da_analise: atual.excluir_da_analise || e.excluir_da_analise,
         valor,
         data_caixa: e.data_caixa === l.data_competencia ? e.data_competencia : e.data_caixa,
         projeto_id: proj?.tipo === 'projeto' ? proj.id : null,
@@ -132,6 +140,9 @@ export function DetalheLancamento({ l, fechar }: { l: Lancamento; fechar: () => 
       )}
       {campo('d-tags', 'Tags', <input id="d-tags" type="text" value={e.tags ?? ''} onInput={(ev) => mudar({ tags: (ev.target as HTMLInputElement).value })} />)}
       {campo('d-obs', 'Observação', <input id="d-obs" type="text" value={e.observacao ?? ''} onInput={(ev) => mudar({ observacao: (ev.target as HTMLInputElement).value })} />)}
+
+      {l.tipo === 'receita' && (l.categoria === CATEGORIA_EMPRESTIMO || l.excluir_da_analise || l.divida_id) && <BlocoEmprestimo l={estado.base!.lancamentos.find((x) => x.id === l.id) ?? l} />}
+      <Anexos l={estado.base!.lancamentos.find((x) => x.id === l.id) ?? l} />
 
       {erro && <p class="erro-campo" role="alert">{erro}</p>}
       <button type="button" class="botao-primario" onClick={salvar}>Salvar alterações</button>

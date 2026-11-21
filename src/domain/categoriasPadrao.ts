@@ -8,7 +8,7 @@ const LISTA: Array<[string, string[], Natureza | '', TipoCategoria]> = [
   // Gastos
   ['Moradia', ['Aluguel', 'Condomínio', 'IPTU', 'Contas da casa', 'Manutenção'], 'fixa', 'despesa'],
   ['Alimentação', ['Supermercado', 'Feira', 'Delivery', 'Restaurante/Bar', 'Padaria'], 'variavel', 'despesa'],
-  ['Transporte', ['Aplicativo', 'Público', 'Combustível'], 'variavel', 'despesa'],
+  ['Transporte', ['Aplicativo/Táxi', 'Público', 'Combustível'], 'variavel', 'despesa'],
   ['Saúde', ['Farmácia', 'Consultas', 'Terapia', 'Academia'], '', 'despesa'],
   ['Assinaturas', ['Streaming de vídeo', 'Streaming de áudio', 'Software/apps', 'Armazenamento em nuvem'], 'fixa', 'despesa'],
   ['Serviços', ['Faxina', 'Outros'], '', 'despesa'],
@@ -26,6 +26,8 @@ const LISTA: Array<[string, string[], Natureza | '', TipoCategoria]> = [
   ['Benefício', [], 'nenhuma', 'receita'],
   ['Rendimentos', [], 'nenhuma', 'receita'],
   ['Estorno', [], 'nenhuma', 'receita'],
+  // Empréstimo recebido: entra no saldo, não é renda, e liga a uma dívida (DECISIONS D81).
+  ['Empréstimo', [], 'nenhuma', 'receita'],
   ['Outras entradas', [], 'nenhuma', 'receita'],
   // Transferências gerenciais (não são gasto nem renda, SPEC 7)
   ['Transferências', ['Pagamento de fatura', 'Entre contas próprias'], 'nenhuma', 'transferencia'],
@@ -52,3 +54,4 @@ export function categoriasPadrao(): CategoriaPadrao[] {
 export const CATEGORIA_TRANSFERENCIA = 'Transferências';
 export const SUB_PAGAMENTO_FATURA = 'Pagamento de fatura';
 export const SUB_ENTRE_CONTAS = 'Entre contas próprias';
+export const CATEGORIA_EMPRESTIMO = 'Empréstimo';

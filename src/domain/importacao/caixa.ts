@@ -1,4 +1,5 @@
 import { criarLancamento } from '../lancamento';
+import { CATEGORIA_EMPRESTIMO } from '../categoriasPadrao';
 import { interpretarTexto } from '../parser';
 import { aplicarRegras } from '../regras';
 import type { Categoria, Conta, DataISO, Lancamento, Pessoa, RegistroGenerico, TipoLancamento } from '../types';
@@ -93,11 +94,17 @@ export function previaCaixa(item: RegistroGenerico, ctx: ContextoCaixa): PreviaC
     contaDestinoId,
     descricao: (sug.fonte === 'regra' && sug.descricao) || descBase,
     // Transferência: a categoria "Transferências" é posta ao criar o lançamento.
-    categoria: tipo === 'transferencia' ? null : (item.categoria as string) || sug.categoria || (tipo === 'despesa' ? 'Sem categoria' : null),
+    categoria:
+      tipo === 'transferencia'
+        ? null
+        : (item.categoria as string) ||
+          (emprestimo && ctx.categorias.some((c) => c.categoria === CATEGORIA_EMPRESTIMO) ? CATEGORIA_EMPRESTIMO : null) ||
+          sug.categoria ||
+          (tipo === 'despesa' ? 'Sem categoria' : null),
     subcategoria: tipo === 'transferencia' ? null : (item.subcategoria as string) || sug.subcategoria || null,
     quem,
     regraId: sug.regraId,
-    emprestimo,
+    emprestimo: emprestimo || ((item.categoria as string) === CATEGORIA_EMPRESTIMO && tipo === 'receita'),
   };
 }
 

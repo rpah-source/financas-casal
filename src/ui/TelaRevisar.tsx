@@ -6,7 +6,9 @@ import { formatarBRL } from '../domain/money';
 import { lerParametroNumero } from '../domain/parametros';
 import { padraoSugerido } from '../domain/regras';
 import type { Lancamento, RegistroGenerico } from '../domain/types';
-import { EscolherCategoria, useToast } from './comum';
+import { EscolherCategoria, Folha, useToast } from './comum';
+import { FormDivida } from './Divida';
+import { lerPessoas } from '../domain/parametros';
 import type { PreviaCaixa } from '../domain/importacao/caixa';
 import { nomeFatura } from './Fatura';
 import { useApp } from './useApp';
@@ -32,6 +34,8 @@ export function TelaRevisar({ voltar, importar }: { voltar: () => void; importar
   const [ofertaRegra, setOfertaRegra] = useState<{ padrao: string; categoria: string; subcategoria: string | null; contaId: string } | null>(null);
   const [mantidos, setMantidos] = useState(lerMantidos);
   const [ocupado, setOcupado] = useState(false);
+  const [aberto, setAberto] = useState<RegistroGenerico | null>(null);
+  const [dividaDe, setDividaDe] = useState<Lancamento | null>(null);
   if (!base) return <p class="discreto">Carregando…</p>;
 
   const janela = lerParametroNumero(base.parametros, 'conciliacao.janela_dias', hoje, 5);
@@ -153,7 +157,11 @@ export function TelaRevisar({ voltar, importar }: { voltar: () => void; importar
           <ul class="lista-lancamentos">
             {novos.map((item) => <ItemNovo key={String(item.id)} item={item} ocupado={ocupado}
               categorizar={() => setCategorizando(item)}
-              aceitar={(aj) => rodar(() => app.aceitarCaixa(item, aj), 'Lançado')}
+              abrir={() => setAberto(item)}
+              aceitar={(aj) => rodar(async () => {
+                const l = await app.aceitarCaixa(item, aj);
+                if (app.previaCaixa(item).emprestimo) setDividaDe(l);
+              }, 'Lançado')}
               descartar={() => rodar(() => app.descartarCaixa(item), 'Descartado')} />)}
           </ul>
         </>
@@ -202,6 +210,18 @@ export function TelaRevisar({ voltar, importar }: { voltar: () => void; importar
         </>
       )}
 
+      {aberto && (
+        <FolhaItem
+          item={aberto}
+          fechar={() => setAberto(null)}
+          aposAceitar={(l) => {
+            setAberto(null);
+            if (app.previaCaixa(aberto).emprestimo || l.categoria === 'Empréstimo') setDividaDe(l);
+          }}
+        />
+      )}
+      {dividaDe && <FormDivida emprestimo={dividaDe} fechar={() => setDividaDe(null)} />}
+
       {categorizando && (
         <EscolherCategoria
           categorias={base.categorias}
@@ -222,7 +242,7 @@ export function TelaRevisar({ voltar, importar }: { voltar: () => void; importar
   );
 }
 
-function ItemNovo({ item, ocupado, categorizar, aceitar, descartar }: { item: RegistroGenerico; ocupado: boolean; categorizar: () => void; aceitar: (ajustes?: Partial<PreviaCaixa>) => void; descartar: () => void }) {
+function ItemNovo({ item, ocupado, categorizar, aceitar, descartar, abrir }: { item: RegistroGenerico; ocupado: boolean; categorizar: () => void; aceitar: (ajustes?: Partial<PreviaCaixa>) => void; descartar: () => void; abrir: () => void }) {
   const [{ base }, app] = useApp();
   const p = app.previaCaixa(item);
   const transf = p.tipo === 'transferencia';
@@ -235,8 +255,10 @@ function ItemNovo({ item, ocupado, categorizar, aceitar, descartar }: { item: Re
   return (
     <li class="item-novo">
       <div class="textos-linha">
-        <span class="descricao-linha">{p.descricao}</span>
-        <span class="detalhe-linha">{ddmm(p.data)} · {String(item.texto)}</span>
+        <button type="button" class="botao-texto textos-linha" onClick={abrir} aria-label={`Abrir ${String(item.texto)}`}>
+          <span class="descricao-linha">{p.descricao}</span>
+          <span class="detalhe-linha">{ddmm(p.data)} · {String(item.texto)}</span>
+        </button>
         {transf ? (
           faltaOrigem || faltaDestino ? (
             <label class="detalhe-linha">
@@ -320,5 +342,108 @@ function MoverFatura({ l }: { l: Lancamento }) {
         {outras.map((f) => <option key={f.id} value={f.id}>{nomeFatura(f)}</option>)}
       </select>
     </label>
+  );
+}
+
+/** Item da revisão aberto por inteiro: texto completo do banco e campos para ajustar antes de aceitar. */
+function FolhaItem({ item, fechar, aposAceitar }: { item: RegistroGenerico; fechar: () => void; aposAceitar: (l: Lancamento) => void }) {
+  const [{ base, hoje }, app] = useApp();
+  const toast = useToast();
+  const p = app.previaCaixa(item);
+  const pessoas = lerPessoas(base!.parametros, hoje);
+  const [descricao, setDescricao] = useState(p.descricao);
+  const [cat, setCat] = useState<{ categoria: string | null; subcategoria: string | null }>({ categoria: p.categoria, subcategoria: p.subcategoria });
+  const [quem, setQuem] = useState(p.quem);
+  const [contaId, setContaId] = useState(p.contaId ?? '');
+  const [destinoId, setDestinoId] = useState(p.contaDestinoId ?? '');
+  const [escolhendo, setEscolhendo] = useState(false);
+  const [regra, setRegra] = useState(false);
+  const [erro, setErro] = useState('');
+  const transf = p.tipo === 'transferencia';
+  const contas = base!.contas.filter((c) => c.ativa !== false);
+  const nomeTipo = transf ? 'Transferência' : p.emprestimo ? 'Empréstimo recebido' : p.tipo === 'receita' ? 'Entrada' : 'Gasto';
+
+  async function aceitar() {
+    try {
+      if (regra && cat.categoria) {
+        const padrao = padraoSugerido(String(item.texto ?? ''));
+        if (padrao) await app.criarRegra({ padrao, descricao, categoria: cat.categoria, subcategoria: cat.subcategoria });
+      }
+      const l = await app.aceitarCaixa(item, {
+        descricao, quem, categoria: cat.categoria, subcategoria: cat.subcategoria,
+        ...(transf ? { contaId: contaId || null, contaDestinoId: destinoId || null } : contaId ? { contaId } : {}),
+      });
+      toast({ texto: 'Lançado' });
+      aposAceitar(l);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui lançar.');
+    }
+  }
+
+  return (
+    <Folha titulo={nomeTipo} fechar={fechar}>
+      <div class="cartao">
+        <p class="discreto">Como veio do banco</p>
+        <p><strong>{String(item.texto)}</strong></p>
+        <p>{formatarBRL(p.valor ?? 0)} · {ddmm(p.data)}</p>
+      </div>
+      <div class="campo">
+        <label for="fi-desc">Descrição no app</label>
+        <input id="fi-desc" type="text" value={descricao} onInput={(e) => setDescricao((e.target as HTMLInputElement).value)} />
+      </div>
+      {transf ? (
+        <div class="linha-botoes">
+          <div class="campo">
+            <label for="fi-de">Sai de</label>
+            <select id="fi-de" value={contaId} onChange={(e) => setContaId((e.target as HTMLSelectElement).value)}>
+              <option value="">Escolha</option>
+              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div class="campo">
+            <label for="fi-para">Vai para</label>
+            <select id="fi-para" value={destinoId} onChange={(e) => setDestinoId((e.target as HTMLSelectElement).value)}>
+              <option value="">Escolha</option>
+              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div class="campo">
+            <span class="rotulo">Categoria</span>
+            <button type="button" class="botao-campo" onClick={() => setEscolhendo(true)}>
+              {cat.categoria ? `${cat.categoria}${cat.subcategoria ? ` › ${cat.subcategoria}` : ''}` : 'Escolher'}
+            </button>
+          </div>
+          <label class="caixa">
+            <input type="checkbox" checked={regra} onChange={(e) => setRegra((e.target as HTMLInputElement).checked)} />
+            Lembrar para "{padraoSugerido(String(item.texto ?? ''))}" (cria uma regra)
+          </label>
+          <div class="campo">
+            <label for="fi-conta">Conta</label>
+            <select id="fi-conta" value={contaId} onChange={(e) => setContaId((e.target as HTMLSelectElement).value)}>
+              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+        </>
+      )}
+      <div class="campo">
+        <label for="fi-quem">Quem</label>
+        <select id="fi-quem" value={quem} onChange={(e) => setQuem((e.target as HTMLSelectElement).value as typeof quem)}>
+          <option value="pessoa1">{pessoas.pessoa1}</option>
+          <option value="pessoa2">{pessoas.pessoa2}</option>
+          <option value="casal">Casal</option>
+        </select>
+      </div>
+      {p.emprestimo && <p class="discreto">Empréstimo: entra no saldo, não conta como renda. Depois de lançar, o app pergunta as parcelas.</p>}
+      {erro && <p class="erro-campo" role="alert">{erro}</p>}
+      <button type="button" class="botao-primario" onClick={aceitar}>Lançar</button>
+      <button type="button" class="botao-secundario" onClick={async () => { await app.descartarCaixa(item); toast({ texto: 'Descartado' }); fechar(); }}>Descartar</button>
+      {escolhendo && (
+        <EscolherCategoria categorias={base!.categorias} tipo={p.tipo} fechar={() => setEscolhendo(false)}
+          aoEscolher={(c, sub) => { setCat({ categoria: c, subcategoria: sub }); setRegra(true); setEscolhendo(false); }} />
+      )}
+    </Folha>
   );
 }

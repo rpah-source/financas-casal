@@ -53,7 +53,7 @@ describe('categorias por tipo', async () => {
   const { categoriasDoTipo, aplicarRegras } = await import('./regras');
   it('separa gastos, entradas e transferências', () => {
     const nomes = (t: string) => [...new Set(categoriasDoTipo(categorias, t).map((c) => c.categoria))];
-    expect(nomes('receita')).toEqual(['Salário', 'Benefício', 'Rendimentos', 'Estorno', 'Outras entradas']);
+    expect(nomes('receita')).toEqual(['Salário', 'Benefício', 'Rendimentos', 'Estorno', 'Empréstimo', 'Outras entradas']);
     expect(nomes('transferencia')).toEqual(['Transferências']);
     expect(nomes('despesa')).toContain('Presentes');
     expect(nomes('despesa')).toContain('Doações');

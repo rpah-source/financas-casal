@@ -29,7 +29,9 @@ import { lerTexto } from '../domain/importacao/texto';
 import { atualizarComImportado, conciliar } from '../domain/importacao/conciliacao';
 import { lancamentoDaCaixa, previaCaixa, type PreviaCaixa } from '../domain/importacao/caixa';
 import { regraCasa } from '../domain/regras';
-import { nomeArquivoImportado } from '../domain/arquivos';
+import { baixarParcelasPagas, criarDivida, type NovaDivida } from '../domain/dividas';
+import { CATEGORIA_EMPRESTIMO } from '../domain/categoriasPadrao';
+import { descricaoParaSegundoCerebro, nomeArquivoImportado, nomeComprovante } from '../domain/arquivos';
 import type { Conta, RegistroGenerico } from '../domain/types';
 import { MemoriaTabelas } from '../repo/memoria';
 import { RepositorioPlanilha } from '../repo/repositorio';
@@ -357,11 +359,74 @@ export class App {
     }
     this.mudarLancamentos((ls) => ls.map((x) => (x.id === l.id ? novo : x)));
     await this.escrever(() => this.repo!.atualizar('Lancamentos', novo as unknown as Registro));
+    await this.baixarParcelas(antes ? [antes] : [], [novo]);
     // Pagamento de fatura editado/excluído: refaz a situação da fatura.
     const faturasAfetadas = new Set([antes?.fatura_id, novo.fatura_id].filter((x): x is string => Boolean(x)));
     if (novo.tipo === 'transferencia' || antes?.tipo === 'transferencia') {
       for (const id of faturasAfetadas) await this.recalcularFatura(id);
     }
+  }
+
+  /** Parcela de dívida que virou realizada: a dívida perde uma parcela restante (SPEC 5.6). */
+  private async baixarParcelas(antes: Lancamento[], depois: Lancamento[]) {
+    const base = this.estado.base!;
+    const alteradas = baixarParcelasPagas(antes, depois, base.dividas);
+    if (!alteradas.length) return;
+    const porId = new Map(alteradas.map((d) => [d.id, d]));
+    this.set({ base: { ...this.estado.base!, dividas: this.estado.base!.dividas.map((d) => porId.get(d.id) ?? d) } });
+    await this.escrever(() => this.repo!.atualizarVarios('Dividas', alteradas as Registro[])).catch(() => {});
+  }
+
+  /**
+   * Cadastra uma dívida (SPEC 5.6) e, se vier de um empréstimo recebido,
+   * liga a entrada a ela. As parcelas futuras são geradas como agendadas.
+   */
+  async criarDivida(n: NovaDivida, emprestimo?: Lancamento | null): Promise<RegistroGenerico> {
+    const d = criarDivida(n);
+    this.set({ base: { ...this.estado.base!, dividas: [...this.estado.base!.dividas, d] } });
+    await this.escrever(() => this.repo!.inserir('Dividas', [d]));
+    if (emprestimo) {
+      const temCat = this.estado.base!.categorias.some((c) => c.categoria === CATEGORIA_EMPRESTIMO);
+      await this.editar({
+        ...emprestimo,
+        divida_id: String(d.id),
+        excluir_da_analise: true,
+        categoria: temCat ? CATEGORIA_EMPRESTIMO : emprestimo.categoria,
+      });
+    }
+    await this.gerarPrevistos();
+    return d;
+  }
+
+  /** Liga um empréstimo recebido a uma dívida que já existe. */
+  ligarADivida(emprestimo: Lancamento, dividaId: string) {
+    return this.editar({ ...emprestimo, divida_id: dividaId, excluir_da_analise: true });
+  }
+
+  /**
+   * Anexa um arquivo (foto, PDF, contrato) a um lançamento (SPEC 8.6). O
+   * arquivo vai para o Drive (D70): com outro projeto/área → pasta de Entrada
+   * com o bloco [financas] para o segundo cérebro; senão → pasta de faturas e
+   * comprovantes. O link entra em `docs`. O app não lê o conteúdo.
+   */
+  async anexar(l: Lancamento, arquivo: File): Promise<Lancamento> {
+    const base = this.estado.base!;
+    const ids = this.estado.ids ?? {};
+    const ext = (arquivo.name.split('.').pop() ?? 'bin').toLowerCase();
+    const nome = nomeComprovante({ data: l.data_competencia, descricao: l.descricao || l.categoria || 'Lançamento', valor: l.valor, ext });
+    const proj = l.projeto_area ? this.estado.projetosAreas.find((x) => x.nome === l.projeto_area) : undefined;
+    const outraArea = Boolean(proj && proj.pastaId !== ids.pasta_financas && proj.pastaId !== ids.pasta_faturas);
+    const demo = this.estado.modo === 'demo';
+    const pasta = outraArea && ids.pasta_entrada ? ids.pasta_entrada : ids.pasta_faturas ?? (demo ? 'pasta_demo_faturas' : null);
+    if (!pasta) throw new Error('Escolha a pasta de faturas e comprovantes em Ajustes.');
+    const descricao = outraArea
+      ? descricaoParaSegundoCerebro({ destino: proj!.nome, pastaId: proj!.pastaId, lancamentoId: l.id, tipo: 'comprovante' })
+      : undefined;
+    const enviado = await this.storage().enviarArquivo({ nome, mimeType: arquivo.type || 'application/octet-stream', conteudo: arquivo, paiId: pasta, descricao });
+    const atual = base.lancamentos.find((x) => x.id === l.id) ?? l;
+    const novo = { ...atual, docs: [atual.docs, enviado.url].filter(Boolean).join(' ') };
+    await this.editar(novo);
+    return novo;
   }
 
   /** Liga uma compra/estorno de cartão à fatura certa (criando a fatura se preciso). */
@@ -651,6 +716,7 @@ export class App {
         await this.repo!.inserir('Parametros', [{ chave: 'importacao.conta_externa', escopo: assinaturaConta(p.lembrarContaExterna), valor: conta.id, vigente_desde: this.estado.hoje }]);
       }
     });
+    await this.baixarParcelas(base.lancamentos, r.casados);
     for (const id of new Set(r.casados.filter((l) => l.tipo === 'transferencia' && l.fatura_id).map((l) => l.fatura_id!))) {
       await this.recalcularFatura(id);
     }

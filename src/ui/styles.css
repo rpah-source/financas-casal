@@ -554,3 +554,5 @@ button.fatura > span { display: block; }
 .topo-tela .botao-link { margin-left: auto; }
 .acoes-novo > div { display: flex; }
 .nome-arquivo { word-break: break-all; text-align: right; font-weight: 600; }
+.botao-texto.textos-linha { display: flex; flex-direction: column; width: 100%; min-width: 0; color: inherit; font: inherit; }
+.botao-arquivo.desativado { opacity: 0.55; }

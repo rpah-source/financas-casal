@@ -1,5 +1,11 @@
 # Changelog
 
+## Revisar detalhada, empréstimos e anexos — 21/11/2026
+- **Revisar:** toque num item para ver o texto completo do banco e ajustar descrição, categoria, conta, pessoa e criar regra antes de lançar.
+- **Empréstimo:** nova categoria de entrada. Ao lançar ou aceitar um empréstimo, o app pede os dados da dívida (credor, parcela, parcelas que faltam, dia) e agenda as parcelas futuras. A entrada não conta como renda.
+- **Anexos:** no detalhe de qualquer lançamento (Extrato › tocar), "Anexar documento ou foto" — contrato, recibo, comprovante. Vai para o Drive e o link fica no lançamento.
+- Subcategoria "Aplicativo" agora é "Aplicativo/Táxi".
+
 ## Categorias por tipo — 21/11/2026
 - Categorias separadas em **gastos**, **entradas** e **transferências** (pagamento de fatura, entre contas). Ao lançar um gasto só aparecem categorias de gasto; numa entrada, só de entrada.
 - Novas: "Presentes" e "Doações" (separadas), "Rendimentos" e "Outras entradas".

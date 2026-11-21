@@ -26,7 +26,7 @@ export function planilhaDemo(hoje: string): Partial<Record<NomeAba, Celula[][]>>
     ]),
     Regras: tab('Regras', [
       { id: 'reg_demo_1', padrao: 'ifood', descricao: 'iFood', categoria: 'Alimentação', subcategoria: 'Delivery', prioridade: 0, vezes_usada: 3, ativa: true },
-      { id: 'reg_demo_2', padrao: 'uber', descricao: 'Uber', categoria: 'Transporte', subcategoria: 'Aplicativo', prioridade: 0, vezes_usada: 2, ativa: true },
+      { id: 'reg_demo_2', padrao: 'uber', descricao: 'Uber', categoria: 'Transporte', subcategoria: 'Aplicativo/Táxi', prioridade: 0, vezes_usada: 2, ativa: true },
     ]),
     Recorrencias: tab('Recorrencias', [
       { id: 'rec_demo_faxina', descricao: 'Faxina', tipo: 'despesa', valor: 180, conta_id: 'cta_demo_azul', categoria: 'Serviços', subcategoria: 'Faxina', natureza: 'fixa', quem: 'casal', frequencia: 'semanal', dia_semana: 5, inicio: '2026-01-01', ativa: true },

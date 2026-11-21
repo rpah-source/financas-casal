@@ -12,6 +12,8 @@ import { normalizar } from '../domain/valores';
 import { Chips, EscolherCategoria, NOME_NATUREZA, NOME_STATUS, useToast } from './comum';
 import { cicloDaCompra, faturaParaPagamento, pagamentosDaFatura, totalFatura } from '../domain/faturas';
 import { nomeFatura } from './Fatura';
+import { FormDivida } from './Divida';
+import { CATEGORIA_EMPRESTIMO } from '../domain/categoriasPadrao';
 import { useApp } from './useApp';
 import { diffDias } from '../domain/dates';
 
@@ -89,6 +91,7 @@ function Formulario(p: {
   const [frase, setFrase] = useState('');
   const [parcelas, setParcelas] = useState(1);
   const [emprestimo, setEmprestimo] = useState(false);
+  const [dividaDe, setDividaDe] = useState<Lancamento | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [pergunta, setPergunta] = useState<{ lancamento: Lancamento; previsto: Lancamento; extra: Parameters<typeof app.lancar>[1] } | null>(null);
@@ -177,7 +180,10 @@ function Formulario(p: {
       contaDestinoId: destinoId,
       data,
       quem,
-      categoria: categoria ?? (tipo === 'despesa' ? 'Sem categoria' : null),
+      categoria:
+        tipo === 'receita' && emprestimo && base.categorias.some((c) => c.categoria === CATEGORIA_EMPRESTIMO)
+          ? CATEGORIA_EMPRESTIMO
+          : categoria ?? (tipo === 'despesa' ? 'Sem categoria' : null),
       subcategoria,
       natureza,
       status: statusManual || null,
@@ -218,7 +224,9 @@ function Formulario(p: {
         texto: antes ? 'Lançado no lugar do previsto' : extra?.parcelas ? `Lançado em ${extra.parcelas} parcelas` : 'Lançado',
         acao: { rotulo: 'Desfazer', f: () => void (antes ? app.editar(antes) : app.excluir(l)) },
       });
-      p.aoTerminar();
+      // Empréstimo recebido: pergunta as parcelas antes de sair (DECISIONS D81).
+      if (l.tipo === 'receita' && (emprestimo || l.categoria === CATEGORIA_EMPRESTIMO)) setDividaDe(l);
+      else p.aoTerminar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui salvar.');
     } finally {
@@ -480,6 +488,8 @@ function Formulario(p: {
           {salvando ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
+
+      {dividaDe && <FormDivida emprestimo={dividaDe} fechar={() => { setDividaDe(null); p.aoTerminar(); }} />}
 
       {escolhendoCat && (
         <EscolherCategoria

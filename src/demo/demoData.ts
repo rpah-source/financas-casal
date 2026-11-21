@@ -53,7 +53,7 @@ export function gerarDadosDemo(hoje: string): DadosDemo {
     lan(0, 'Padaria', 18.5, 'cta_demo_azul', 'Alimentação', { subcategoria: 'Padaria', quem: 'pessoa2' }),
     lan(1, 'Delivery', 68.9, 'cta_demo_verde', 'Alimentação', { subcategoria: 'Delivery' }),
     lan(1, 'Supermercado', 212.4, 'cta_demo_vale', 'Alimentação', { subcategoria: 'Supermercado' }),
-    lan(2, 'Aplicativo de transporte', 23.4, 'cta_demo_verde', 'Transporte', { subcategoria: 'Aplicativo', quem: 'pessoa1' }),
+    lan(2, 'Aplicativo de transporte', 23.4, 'cta_demo_verde', 'Transporte', { subcategoria: 'Aplicativo/Táxi', quem: 'pessoa1' }),
     lan(3, 'Farmácia', 45, 'cta_demo_azul', 'Saúde', { subcategoria: 'Farmácia' }),
     lan(4, 'Feira', 52, 'cta_demo_vale', 'Alimentação', { subcategoria: 'Feira' }),
     // Não entram na semanada: fixa, transferência e um previsto.

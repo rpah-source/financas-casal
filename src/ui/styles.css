@@ -553,3 +553,4 @@ button.fatura > span { display: block; }
 .chip-alerta { border-color: #efd9ad; background: var(--atencao-fundo); color: var(--atencao); }
 .topo-tela .botao-link { margin-left: auto; }
 .acoes-novo > div { display: flex; }
+.nome-arquivo { word-break: break-all; text-align: right; font-weight: 600; }

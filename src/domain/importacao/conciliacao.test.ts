@@ -112,3 +112,21 @@ describe('teste 13: linha escrita sem id na CaixaEntrada', () => {
     expect(l.id).toMatch(/^lan_/);
   });
 });
+
+describe('lançamentos iguais no mesmo dia (ida e volta de metrô)', () => {
+  it('são dois lançamentos diferentes; reimportar não duplica', () => {
+    const metro = (o = {}) => linha({ descricao: 'METRO EXEMPLO', valor: 7.9, data: '2026-11-18', ...o });
+    const r1 = conciliar([metro(), metro()], base());
+    expect(r1.novos).toBe(2);
+    expect(new Set(r1.caixa.map((c) => c.chave_dedupe)).size).toBe(2);
+    const r2 = conciliar([metro(), metro()], base({ caixaEntrada: r1.caixa }));
+    expect(r2).toMatchObject({ novos: 0, ignorados: 2 });
+  });
+
+  it('com uma ida já lançada à mão, casa uma e traz a outra como nova', () => {
+    const manual = criarLancamento({ tipo: 'despesa', valor: 7.9, descricao: 'metro exemplo', contaId: 'cta_azul', data: '2026-11-18', quem: 'casal' }, { contas, categorias, hoje: HOJE });
+    const r = conciliar([linha({ descricao: 'METRO EXEMPLO', valor: 7.9, data: '2026-11-18' }), linha({ descricao: 'METRO EXEMPLO', valor: 7.9, data: '2026-11-18' })], base({ lancamentos: [manual] }));
+    expect(r.casados).toHaveLength(1);
+    expect(r.novos).toBe(1);
+  });
+});

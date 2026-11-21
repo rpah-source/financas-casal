@@ -157,6 +157,7 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
 
       {pdf && (
         <div class="cartao">
+          <p class="nome-arquivo">{original?.nome}</p>
           <p><strong>PDF recebido.</strong> Leitura automática de PDF chega numa próxima versão; cole o texto ou importe CSV/OFX.</p>
           <p class="discreto">Dá para salvar o PDF no Drive agora e ligar à fatura.</p>
         </div>
@@ -166,6 +167,7 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
         <div class="cartao">
           <h2 class="titulo-cartao">O que encontrei</h2>
           <ul class="lista-conta">
+            <li><span>Arquivo</span><span class="nome-arquivo">{original?.nome === 'texto-colado.txt' ? 'Texto colado' : original?.nome}</span></li>
             <li><span>Formato</span><span>{lido.formato.toUpperCase()}{lido.banco ? ` · ${lido.banco}` : ''}</span></li>
             <li><span>Lançamentos lidos</span><span>{lido.linhas.length}</span></li>
             {lido.ignoradas > 0 && <li><span>Linhas sem dados suficientes (ignoradas)</span><span>{lido.ignoradas}</span></li>}

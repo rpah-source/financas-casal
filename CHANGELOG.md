@@ -1,6 +1,7 @@
 # Changelog
 
 ## M5.2 · Importar o histórico — 21/11/2026
+- Tela Importar mostra o nome do arquivo escolhido (ou "Texto colado").
 - Importar: aviso claro quando falta escolher a conta; o app lembra a conta do CSV do Santander pelo cabeçalho (sem guardar o número da conta).
 - Fatura antiga: opção "Esta fatura já foi paga" — as compras entram como realizadas e a fatura não aparece como aberta.
 - Pagamento antigo visto numa fatura não quita mais a fatura atual.

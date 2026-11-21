@@ -20,7 +20,7 @@ async function lerComoTexto(arq: File): Promise<string> {
 
 /** Importar extrato ou fatura (SPEC 8.2): arquivo do app Arquivos ou texto colado. */
 export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; voltar: () => void }) {
-  const [{ base }, app] = useApp();
+  const [{ base, hoje }, app] = useApp();
   const toast = useToast();
   const [contaId, setContaId] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
@@ -30,6 +30,7 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
   const [csvSemPerfil, setCsvSemPerfil] = useState<{ linhas: string[][]; texto: string } | null>(null);
   const [vencimento, setVencimento] = useState('');
   const [lembrar, setLembrar] = useState(true);
+  const [jaPaga, setJaPaga] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
   if (!base) return <p class="discreto">Carregando…</p>;
@@ -74,7 +75,10 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
 
   async function importar() {
     setErro('');
-    if (!conta) return setErro('Escolha a conta ou o cartão.');
+    if (!conta) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return setErro('Toque lá em cima na conta ou no cartão deste arquivo.');
+    }
     if (!original) return;
     setOcupado(true);
     try {
@@ -84,6 +88,7 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
         vencimento: vencimento || null,
         original,
         lembrarContaExterna: lembrar && lido?.contaExterna && app.contaLembrada(lido.contaExterna) !== conta.id ? lido.contaExterna : undefined,
+        jaPaga: faturaAntiga && jaPaga,
       });
       toast({
         texto: pdf
@@ -103,6 +108,7 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
       ? cicloDaImportacao(conta.id, { vencimento: vencimento || lido?.vencimento, fim: lido?.fim, datas: lido?.linhas.map((l) => l.data) ?? [] }, base.parametros)
       : null;
   // Para conferir com o total do banco: compras − créditos, sem os pagamentos de fatura.
+  const faturaAntiga = Boolean(ciclo && ciclo.data_vencimento < hoje);
   const soma = lido
     ? lido.linhas.filter((l) => !ehPagamentoFatura(l.descricao)).reduce((s, l) => s + (l.sentido === 'saida' ? 1 : -1) * Math.round(l.valor * 100), 0) / 100
     : 0;
@@ -180,6 +186,12 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
             <input id="imp-venc" type="date" value={vencimento || ciclo?.data_vencimento || ''} onChange={(e) => setVencimento((e.target as HTMLInputElement).value)} />
           </div>
           {ciclo && <p class="discreto">Fatura de {nomeMesLongo(partesData(`${ciclo.competencia}-01`).mes)}/{ciclo.competencia.slice(2, 4)} (fecha {ddmm(ciclo.data_fechamento)}, vence {ddmm(ciclo.data_vencimento)}).</p>}
+          {faturaAntiga && (
+            <label class="caixa">
+              <input type="checkbox" checked={jaPaga} onChange={(e) => setJaPaga((e.target as HTMLInputElement).checked)} />
+              Esta fatura já foi paga (as compras entram como realizadas e ela não aparece como aberta)
+            </label>
+          )}
         </div>
       )}
 
@@ -190,11 +202,12 @@ export function TelaImportar({ aoTerminar, voltar }: { aoTerminar: () => void; v
         </label>
       )}
 
+      {(lido || pdf) && !conta && <p class="alerta-ambar">Falta escolher, lá em cima, de qual conta ou cartão é este arquivo.</p>}
       {erro && <p class="erro-campo" role="alert">{erro}</p>}
 
       {(lido || pdf) && (
         <>
-          <button type="button" class="botao-primario" disabled={ocupado || !conta} onClick={importar}>
+          <button type="button" class="botao-primario" disabled={ocupado} onClick={importar}>
             {ocupado ? 'Importando…' : pdf ? 'Salvar PDF no Drive' : 'Importar e revisar'}
           </button>
           <button type="button" class="botao-link" onClick={() => { setLido(null); setPdf(false); setOriginal(null); setVencimento(''); }}>

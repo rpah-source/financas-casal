@@ -92,3 +92,6 @@ Registro de escolhas não especificadas no SPEC (SPEC, cabeçalho: "registre a o
 - **D73 · Texto de extrato sem CPF/agência/conta:** o leitor de OFX remove CPF mascarado, agência e número de conta do MEMO.
 - **D74 · Parâmetros duplicados:** linhas genéricas `pessoa1.nome`/`pessoa2.nome` removidas da planilha do usuário (mesma vigência das reais). Em empate de vigência continua valendo a linha mais abaixo.
 - **D75 · Recorrência semanal sem cortes do mês:** um previsto semanal já existe se houver lançamento da recorrência a até 3 dias da data prevista (a faxina muda de dia; a semana 1–8 dos cortes pode ter duas quintas). Substitui "mesma semana" de SPEC 5.3 para semanais.
+- **D76 · Conta lembrada sem número:** a conta do banco (OFX `ACCTID` ou agência/conta do cabeçalho do CSV) é guardada só como resumo (hash FNV-1a, `h1a2b3c4d`) em `importacao.conta_externa`; o número nunca vai para a planilha.
+- **D77 · Fatura antiga já paga:** ao importar fatura com vencimento no passado, a tela oferece "Esta fatura já foi paga" (marcado): a fatura fica `paga` e as compras entram realizadas, sem precisar do pagamento.
+- **D78 · Pagamento sem valor igual** só quita fatura com vencimento a até 10 dias da data do pagamento; senão fica transferência sem fatura (pagamento antigo não quita a fatura atual).

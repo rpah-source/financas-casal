@@ -92,6 +92,12 @@ describe('pagamento de fatura (teste 3)', () => {
     expect(r.lancamentosAlterados).toEqual([]);
   });
 
+  it('pagamento antigo, de valor diferente, não quita a fatura atual', () => {
+    const { fatura, lancs } = cenario();
+    expect(faturaParaPagamento('cta_verde', 1500, '2026-10-06', [fatura], lancs)).toBeNull();
+    expect(faturaParaPagamento('cta_verde', 100, '2026-12-05', [fatura], lancs)?.fatura.id).toBe(fatura.id);
+  });
+
   it('casa o pagamento com a fatura de total igual (±1%)', () => {
     const { fatura, lancs } = cenario();
     const outra = obterFatura([fatura], 'cta_verde', cicloDaCompra('cta_verde', '2026-12-05', params)!, HOJE).fatura;

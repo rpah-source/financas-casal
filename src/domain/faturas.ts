@@ -246,9 +246,11 @@ export function faturaParaPagamento(
     return devido > 0 && Math.abs(valor - devido) <= devido * 0.01;
   });
   if (forte) return { fatura: forte, forte: true };
-  if (emAberto.length === 1) return { fatura: emAberto[0], forte: false };
-  // Sem empate claro: a fechada (ou aberta) que vence primeiro.
-  const porVencimento = [...emAberto].sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento));
+  // Sem valor igual: só uma fatura que vence perto da data do pagamento (±10 dias).
+  // Um pagamento antigo (ex.: visto numa fatura importada de meses atrás) não quita a fatura atual.
+  const perto = emAberto.filter((f) => Math.abs(diffDias(dataPagamento, f.data_vencimento)) <= 10);
+  if (perto.length === 1) return { fatura: perto[0], forte: false };
+  const porVencimento = [...perto].sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento));
   return porVencimento[0] ? { fatura: porVencimento[0], forte: false } : null;
 }
 

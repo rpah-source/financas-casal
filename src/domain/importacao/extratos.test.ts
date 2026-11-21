@@ -76,3 +76,15 @@ describe('CaixaEntrada escrita pelo segundo cérebro', () => {
     expect(r.problemas).toEqual([]);
   });
 });
+
+describe('lembrar a conta do arquivo sem guardar o número', async () => {
+  const { assinaturaConta, contaNoPreambulo } = await import('./tipos');
+  it('acha agência/conta no cabeçalho do CSV e guarda só um resumo', () => {
+    const raw = contaNoPreambulo(separarCSV(amostra('santander-extrato.csv')));
+    expect(raw).toBe('0000/00.000000.0');
+    const h = assinaturaConta(raw!);
+    expect(h).toMatch(/^h[0-9a-f]{8}$/);
+    expect(h).not.toContain('000000');
+    expect(assinaturaConta(' 0000/00.000000.0 ')).toBe(h);
+  });
+});

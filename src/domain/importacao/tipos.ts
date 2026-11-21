@@ -39,3 +39,26 @@ export function extrairParcela(texto: string): { descricao: string; parcela?: { 
   if (m) return { descricao: m[1].trim(), parcela: { num: Number(m[2]), total: Number(m[3]) } };
   return { descricao: texto.trim() };
 }
+
+/**
+ * Assinatura da conta do banco (número da conta/ACCTID) para lembrar qual
+ * conta do app é: guarda só um resumo (hash FNV-1a), nunca o número.
+ */
+export function assinaturaConta(bruto: string): string {
+  const s = bruto.replace(/\s+/g, '').toLowerCase();
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `h${h.toString(16).padStart(8, '0')}`;
+}
+
+/** Agência/conta no cabeçalho de um CSV de extrato (ex.: "Conta;00.000000.0"). */
+export function contaNoPreambulo(linhas: string[][]): string | undefined {
+  const pega = (rotulo: RegExp) => linhas.slice(0, 15).find((l) => rotulo.test((l[0] ?? '').trim()))?.[1]?.trim();
+  const conta = pega(/^conta(\s+corrente)?\s*:?$/i);
+  if (!conta) return undefined;
+  const agencia = pega(/^ag[eê]ncia\s*:?$/i) ?? '';
+  return `${agencia}/${conta}`;
+}

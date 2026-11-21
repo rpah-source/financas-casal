@@ -1,5 +1,10 @@
 # Changelog
 
+## M5.2 · Importar o histórico — 21/11/2026
+- Importar: aviso claro quando falta escolher a conta; o app lembra a conta do CSV do Santander pelo cabeçalho (sem guardar o número da conta).
+- Fatura antiga: opção "Esta fatura já foi paga" — as compras entram como realizadas e a fatura não aparece como aberta.
+- Pagamento antigo visto numa fatura não quita mais a fatura atual.
+
 ## M5.1 · Extratos reais e regras do segundo cérebro — 20/11/2026
 - Previsto semanal (ex.: faxina) conta a semana a partir do dia previsto (±3 dias), sem pular quando o mês tem duas quintas na mesma "semana".
 - Arquivos importados vão direto para "Finanças Pessoais - Comprovantes", sem pasta por ano, com o nome "AAAA-MM – Fatura (ou Extrato) – conta".

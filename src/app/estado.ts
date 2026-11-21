@@ -22,7 +22,7 @@ import type { Lancamento } from '../domain/types';
 import type { Registro } from '../domain/linhas';
 import { novoId } from '../domain/ids';
 import { lerIndice } from '../google/indice';
-import type { ArquivoLido } from '../domain/importacao/tipos';
+import { assinaturaConta, contaNoPreambulo, type ArquivoLido } from '../domain/importacao/tipos';
 import { lerOFX } from '../domain/importacao/ofx';
 import { acharTabela, detectarPerfil, lerCSV, separarCSV, type PerfilCSV } from '../domain/importacao/csv';
 import { lerTexto } from '../domain/importacao/texto';
@@ -305,7 +305,9 @@ export class App {
         l = r.lancamentos[0];
       } else {
         const faturaDada = extra.faturaId ? this.estado.base!.faturas.find((f) => f.id === extra.faturaId) : undefined;
-        l = faturaDada ? { ...l, fatura_id: faturaDada.id, data_caixa: faturaDada.data_vencimento } : await this.ligarAFatura(l);
+        l = faturaDada
+          ? { ...l, fatura_id: faturaDada.id, data_caixa: faturaDada.data_vencimento, status: faturaDada.status === 'paga' ? 'realizado' : l.status }
+          : await this.ligarAFatura(l);
         this.mudarLancamentos((ls) => [...ls, l]);
         await this.escrever(() => this.repo!.inserir('Lancamentos', [l as unknown as Registro]));
       }
@@ -515,7 +517,8 @@ export class App {
       const todas = separarCSV(p.texto);
       const achada = p.perfil ? { linhas: todas.slice(Math.max(0, todas.findIndex((l) => detectarPerfil(l, [p.perfil!])))), perfil: p.perfil } : acharTabela(todas, this.perfisCSV());
       if (!achada.perfil) return { tipo: 'csv-sem-perfil', linhas: todas };
-      return { tipo: 'lido', lido: lerCSV(achada.linhas, achada.perfil), perfil: achada.perfil };
+      const lido = lerCSV(achada.linhas, achada.perfil);
+      return { tipo: 'lido', lido: { ...lido, contaExterna: contaNoPreambulo(todas) }, perfil: achada.perfil };
     }
     return { tipo: 'lido', lido: lerTexto(p.texto, { tipoConta: p.tipoConta, hoje: this.estado.hoje }) };
   }
@@ -544,7 +547,7 @@ export class App {
   /** Conta lembrada para um identificador de conta do banco (OFX ACCTID). */
   contaLembrada(contaExterna?: string): string | null {
     if (!contaExterna || !this.estado.base) return null;
-    return lerParametro(this.estado.base.parametros, 'importacao.conta_externa', this.estado.hoje, contaExterna);
+    return lerParametro(this.estado.base.parametros, 'importacao.conta_externa', this.estado.hoje, assinaturaConta(contaExterna));
   }
 
   /**
@@ -569,6 +572,8 @@ export class App {
     vencimento?: string | null;
     original: { nome: string; ext: string; mimeType: string; conteudo: Blob };
     lembrarContaExterna?: string;
+    /** Fatura antiga que já foi paga: compras entram como realizadas. */
+    jaPaga?: boolean;
   }): Promise<ResumoImportacao> {
     const base = this.estado.base;
     if (!base || !this.repo) throw new Error('Os dados ainda não carregaram');
@@ -586,6 +591,7 @@ export class App {
         const r = obterFatura(base.faturas, conta.id, ciclo, this.estado.hoje, agora);
         fatura = r.fatura;
         faturaNova = r.nova;
+        if (p.jaPaga && fatura.status !== 'paga') fatura = { ...fatura, status: 'paga', atualizado_em: agora };
       }
     }
 
@@ -629,7 +635,7 @@ export class App {
         caixaEntrada: [...base.caixaEntrada, ...r.caixa],
         importacoes: [...base.importacoes, importacao],
         parametros: p.lembrarContaExterna
-          ? [...base.parametros, { chave: 'importacao.conta_externa', escopo: p.lembrarContaExterna, valor: conta.id, vigente_desde: this.estado.hoje }]
+          ? [...base.parametros, { chave: 'importacao.conta_externa', escopo: assinaturaConta(p.lembrarContaExterna), valor: conta.id, vigente_desde: this.estado.hoje }]
           : base.parametros,
       },
     });
@@ -642,7 +648,7 @@ export class App {
       if (r.casados.length) await this.repo!.atualizarVarios('Lancamentos', r.casados as unknown as Registro[]);
       if (r.caixa.length) await this.repo!.inserir('CaixaEntrada', r.caixa as Registro[]);
       if (p.lembrarContaExterna) {
-        await this.repo!.inserir('Parametros', [{ chave: 'importacao.conta_externa', escopo: p.lembrarContaExterna, valor: conta.id, vigente_desde: this.estado.hoje }]);
+        await this.repo!.inserir('Parametros', [{ chave: 'importacao.conta_externa', escopo: assinaturaConta(p.lembrarContaExterna), valor: conta.id, vigente_desde: this.estado.hoje }]);
       }
     });
     for (const id of new Set(r.casados.filter((l) => l.tipo === 'transferencia' && l.fatura_id).map((l) => l.fatura_id!))) {

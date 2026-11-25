@@ -42,6 +42,29 @@ describe('SheetsTabelas', () => {
     expect(g.chamadas[0].corpo).toEqual({ values: [['lan_1', 68.9, '']] });
   });
 
+  it('grava só as células alteradas, juntando vizinhas, com RAW', async () => {
+    const g = googleFalso([]);
+    await new SheetsTabelas('PL', g.cliente).gravarCelulas('Lancamentos', [
+      { linha: 5, coluna: 7, valor: 'Lazer' },
+      { linha: 5, coluna: 8, valor: null },
+      { linha: 5, coluna: 30, valor: '2026-11-25T15:00:00Z' },
+    ]);
+    expect(g.chamadas[0].url).toContain('/values:batchUpdate');
+    expect(g.chamadas[0].corpo).toEqual({
+      valueInputOption: 'RAW',
+      data: [
+        { range: "'Lancamentos'!H5", values: [['Lazer', '']] },
+        { range: "'Lancamentos'!AE5", values: [['2026-11-25T15:00:00Z']] },
+      ],
+    });
+  });
+
+  it('versão da planilha = modifiedTime do arquivo no Drive', async () => {
+    const g = googleFalso([[/drive\/v3\/files\/PL/, { modifiedTime: '2026-11-25T18:00:00.000Z' }]]);
+    expect(await new SheetsTabelas('PL', g.cliente).versao()).toBe('2026-11-25T18:00:00.000Z');
+    expect(g.chamadas[0].url).toContain('fields=modifiedTime');
+  });
+
   it('cria abas, cabeçalhos e listas suspensas', async () => {
     const g = googleFalso([[/fields=sheets/, { sheets: [{ properties: { sheetId: 7, title: 'Contas' } }] }]]);
     await new SheetsTabelas('PL', g.cliente).garantirEstrutura([aba('Contas')], { Contas: ['nome', 'minha_coluna'] });

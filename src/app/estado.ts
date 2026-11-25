@@ -87,6 +87,10 @@ export class App {
   private armazem: Armazem = criarArmazem();
   private repo: RepositorioComFila | null = null;
   private google = criarClienteGoogle(() => this.sessao.obterToken());
+  /** Versão da planilha (Drive `modifiedTime`) dos dados que estão na tela. */
+  private versaoCarregada: string | null = null;
+  private carregandoAgora: Promise<void> | null = null;
+  private ultimaConferencia = 0;
 
   constructor() {
     const demoForcado = new URLSearchParams(location.search).get('demo') === '1';
@@ -106,6 +110,14 @@ export class App {
       ultimaImportacao: null,
     };
     window.addEventListener('online', () => void this.reenviar());
+    // Voltar ao app (trocar de aplicativo, desbloquear o iPhone): confere se a planilha
+    // mudou por fora (segundo cérebro, edição à mão) e recarrega se for o caso.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void this.conferirMudancas();
+    });
+    window.addEventListener('pageshow', (e) => {
+      if ((e as PageTransitionEvent).persisted) void this.conferirMudancas();
+    });
   }
 
   get podeUsarGoogle() {
@@ -130,6 +142,7 @@ export class App {
     } else if (this.estado.ids?.planilha) {
       this.usarRepositorio(new RepositorioPlanilha(new SheetsTabelas(this.estado.ids.planilha, this.google)));
       const cache = await this.armazem.ler<Base>(`base:${this.estado.ids.planilha}`).catch(() => undefined);
+      // O cache aparece na hora (SPEC 10.1) e é sempre substituído pela leitura da planilha logo abaixo.
       if (cache) this.set({ base: cache, doCache: true });
     } else {
       this.set({ carregando: false });
@@ -144,11 +157,47 @@ export class App {
     this.repo.aoMudarPendentes((n) => this.set({ pendentes: n }));
   }
 
-  async carregar() {
+  /** Lê a planilha de novo. Se já há uma leitura em andamento, espera por ela. */
+  carregar(): Promise<void> {
+    if (!this.carregandoAgora) {
+      this.carregandoAgora = this.carregarAgora().finally(() => (this.carregandoAgora = null));
+    }
+    return this.carregandoAgora;
+  }
+
+  /** "Puxar para atualizar": envia o que estiver na fila e lê tudo de novo. */
+  async recarregar() {
+    await this.reenviar();
+    await this.carregar();
+  }
+
+  /**
+   * Ao voltar ao app: compara a versão da planilha com a dos dados na tela e
+   * recarrega se mudou (ou se o dia virou). Custa uma chamada pequena ao Drive.
+   */
+  async conferirMudancas(minimoMs = 15_000) {
+    if (!this.repo || this.carregandoAgora || this.estado.modo !== 'google') return;
+    if (Date.now() - this.ultimaConferencia < minimoMs) return;
+    this.ultimaConferencia = Date.now();
+    try {
+      await this.reenviar();
+      const viradaDoDia = hojeSP() !== this.estado.hoje;
+      if (viradaDoDia) this.set({ hoje: hojeSP() });
+      const atual = await this.repo.versao();
+      if (viradaDoDia || atual === null || atual !== this.versaoCarregada) await this.carregar();
+    } catch (e) {
+      this.tratarErro(e);
+    }
+  }
+
+  private async carregarAgora() {
     if (!this.repo) return;
     this.set({ carregando: true, aviso: null });
     try {
+      // Versão lida ANTES dos dados: uma mudança durante a leitura faz a próxima conferência recarregar.
+      const versao = await this.repo.versao().catch(() => null);
       const base = await this.repo.carregar(this.estado.hoje);
+      this.versaoCarregada = versao;
       this.set({ base, carregando: false, doCache: false, precisaEntrarDeNovo: false });
       void this.prepararProjetosAreas();
       await this.gerarPrevistos();

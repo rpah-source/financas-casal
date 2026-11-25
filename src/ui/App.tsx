@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { App as Controlador } from '../app/estado';
 import { registrarServiceWorker } from '../pwa/registerSW';
 import { BarraInferior, type Aba } from './BarraInferior';
@@ -10,6 +10,7 @@ import { TelaRevisar } from './TelaRevisar';
 import { TelaImportar } from './TelaImportar';
 import { TelaAjustes } from './TelaAjustes';
 import { TelaSemana } from './TelaSemana';
+import { PuxarParaAtualizar } from './PuxarParaAtualizar';
 import { ContextoApp, useApp } from './useApp';
 
 const ABAS: Aba[] = ['semana', 'extrato', 'lancar', 'fotografia', 'ajustes', 'revisar', 'importar'];
@@ -37,6 +38,7 @@ function Casca() {
   const [aplicarAtualizacao, setAplicarAtualizacao] = useState<(() => void) | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [anterior, setAnterior] = useState<Aba>('semana');
+  const atualizar = useCallback(() => void app.recarregar(), [app]);
 
   useEffect(() => {
     const aoMudar = () => setAba(abaDaUrl());
@@ -85,6 +87,11 @@ function Casca() {
           {estado.pendentes === 1 ? '1 item aguardando envio' : `${estado.pendentes} itens aguardando envio`}
         </div>
       )}
+      <PuxarParaAtualizar
+        ativo={estado.modo === 'google' && Boolean(estado.ids?.planilha) && aba !== 'lancar'}
+        carregando={estado.carregando && Boolean(estado.base)}
+        aoAtualizar={atualizar}
+      />
       <main class="conteudo">
         {aba === 'semana' && <TelaSemana irPara={irPara} />}
         {aba === 'revisar' && <TelaRevisar voltar={() => irPara('semana')} importar={() => irPara('importar')} />}

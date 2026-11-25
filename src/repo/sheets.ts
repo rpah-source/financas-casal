@@ -1,7 +1,7 @@
 import type { Aba, NomeAba } from '../domain/schema';
 import type { Celula } from '../domain/valores';
 import type { ClienteGoogle } from '../google/http';
-import type { FonteTabelas } from './fonte';
+import type { CelulaParaGravar, FonteTabelas } from './fonte';
 
 const API = 'https://sheets.googleapis.com/v4/spreadsheets';
 
@@ -71,14 +71,24 @@ export class SheetsTabelas implements FonteTabelas {
     );
   }
 
-  async gravarLinhas(aba: NomeAba, linhas: Array<{ linha: number; valores: Celula[] }>) {
-    if (!linhas.length) return;
+  async gravarCelulas(aba: NomeAba, celulas: CelulaParaGravar[]) {
+    if (!celulas.length) return;
     await this.google.json(this.url('/values:batchUpdate'), {
       corpo: {
         valueInputOption: 'RAW',
-        data: linhas.map((l) => ({ range: `${intervaloAba(aba)}!A${l.linha}`, values: [semNulos(l.valores)] })),
+        data: agruparCelulas(celulas).map((g) => ({
+          range: `${intervaloAba(aba)}!${letraColuna(g.coluna)}${g.linha}`,
+          values: [semNulos(g.valores)],
+        })),
       },
     });
+  }
+
+  async versao() {
+    const r = await this.google.json<{ modifiedTime?: string }>(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(this.planilhaId)}?fields=modifiedTime&supportsAllDrives=true`,
+    );
+    return r.modifiedTime ?? null;
   }
 
   async garantirEstrutura(abas: Aba[], cabecalhosAtuais: Partial<Record<NomeAba, string[]>>) {
@@ -163,6 +173,18 @@ export class SheetsTabelas implements FonteTabelas {
 
 const intervaloAba = (aba: string) => `'${aba.replace(/'/g, "''")}'`;
 const semNulos = (linha: Celula[]) => linha.map((c) => (c === null || c === undefined ? '' : c));
+
+/** Junta células vizinhas da mesma linha num só intervalo (menos itens no pedido ao Google). */
+export function agruparCelulas(celulas: CelulaParaGravar[]): Array<{ linha: number; coluna: number; valores: Celula[] }> {
+  const ordenadas = [...celulas].sort((a, b) => a.linha - b.linha || a.coluna - b.coluna);
+  const grupos: Array<{ linha: number; coluna: number; valores: Celula[] }> = [];
+  for (const c of ordenadas) {
+    const g = grupos[grupos.length - 1];
+    if (g && g.linha === c.linha && g.coluna + g.valores.length === c.coluna) g.valores.push(c.valor);
+    else grupos.push({ linha: c.linha, coluna: c.coluna, valores: [c.valor] });
+  }
+  return grupos;
+}
 
 /** 0 → A, 25 → Z, 26 → AA. */
 export function letraColuna(indice: number): string {

@@ -2,11 +2,32 @@
 
 Como outros sistemas (ex.: a rotina do segundo cérebro, o assistente Claude) podem
 escrever na planilha **Finanças do Casal — Base** sem quebrar nada.
-Atualizado em 20/11/2026.
+Atualizado em 25/11/2026.
 
 ## Regra de ouro
-Fontes externas escrevem **só** nas abas `CaixaEntrada` e `Importacoes`. Nunca em
-`Lancamentos`. O app mostra cada item em **Revisar** e só lança quando o usuário aceita.
+Fontes externas **criam** coisas só nas abas `CaixaEntrada` e `Importacoes`. Nunca
+acrescentam linhas em `Lancamentos`. O app mostra cada item em **Revisar** e só lança
+quando o usuário aceita. A única escrita permitida em `Lancamentos` é a **correção de
+classificação** descrita abaixo, sempre com aprovação do usuário.
+
+## Corrigir a classificação de um lançamento existente (D86)
+1. Releia a coluna `id` de `Lancamentos` logo antes de escrever e ache a linha pelo `id`
+   (a planilha pode ter sido ordenada). Linha sem `id`: não corrija; espere o app abrir.
+2. Escreva **só** estas células: `categoria`, `subcategoria`, `projeto_area`, `projeto_id`
+   (as duas últimas sempre juntas e coerentes: projeto → nome + ID do Índice; área → nome
+   e `projeto_id` vazio).
+3. Ao trocar a `categoria`, deixe `natureza` **em branco**: o app recalcula pela nova
+   categoria. Exceção: o usuário escolheu uma natureza diferente da padrão.
+4. Grave em `atualizado_em` o timestamp ISO da correção (ex.: `2026-11-25T15:30:00-03:00`).
+5. Nomes exatos: a categoria/subcategoria tem que existir em `Categorias`; o projeto/área,
+   no Índice (ou em `ProjetosAreas`).
+
+Não toque em nenhuma outra coluna de `Lancamentos` (ids, status, valores, datas, contas,
+`chave_dedupe`, `conciliado`, `origem`, `*_id`, `criado_em`).
+
+O app grava só as células que ele mesmo mudou (D84) e confere a versão da planilha ao
+voltar para a tela (D85). Por isso uma correção externa não é desfeita, e aparece no app
+na próxima vez que o usuário voltar para ele ou puxar a tela para atualizar.
 
 ## CaixaEntrada — uma linha por gasto ou entrada
 | coluna | preencher? | formato |
@@ -34,10 +55,12 @@ Para itens externos o app procura duplicidade por **mesmo valor, mesma conta e d
 ±5 dias** e, se achar, mostra "Parece ser: … — É esse?" (o comprovante é ligado ao
 lançamento existente, sem duplicar).
 
-## Importacoes — uma linha por fatura ou extrato processado
+## Importacoes — uma linha por fatura ou extrato processado (D87)
+Para cada fatura ou extrato que o segundo cérebro ler da pasta de Entrada:
 `data`, `tipo_arquivo` (`pdf`, `csv`, `ofx` ou `texto`), `nome_arquivo`, `doc`,
 `linhas_lidas`, `novos`, `casados`, `ignorados`. `id` em branco (o app gera `imp_…`).
-`conta_id` aceita o **nome** da conta.
+`conta_id` aceita o **nome** da conta. Não preencha `fatura_id` nem `sugeridos`.
+Cada gasto do arquivo entra como uma linha na `CaixaEntrada` (com `doc` = link do arquivo).
 
 ## Arquivos que o app grava no Drive
 - **Fatura/extrato importado no app:** direto na pasta `ids.pasta_faturas`

@@ -3,7 +3,7 @@ import type { Registro } from '../domain/linhas';
 import type { NomeAba } from '../domain/schema';
 import type { Armazem } from './armazem';
 import { erroTemporario } from './fonte';
-import type { Repositorio } from './repositorio';
+import type { LinhaConhecida, Repositorio } from './repositorio';
 
 /**
  * Fila offline (SPEC 4.3): escritas que falham por falta de conexão ou
@@ -15,6 +15,11 @@ export interface Escrita {
   aba: NomeAba;
   registros: Registro[];
   em: string;
+  /**
+   * Como o app conhecia cada linha (por id) quando decidiu a edição. Guardado junto
+   * da escrita para que, mesmo enviada horas depois, ela só grave o que o app mudou.
+   */
+  antes?: Record<string, LinhaConhecida>;
 }
 
 const CHAVE = 'fila-escritas';
@@ -52,12 +57,21 @@ export class RepositorioComFila implements Repositorio {
   }
 
   atualizar(aba: NomeAba, registro: Registro) {
-    return this.escrever({ op: 'atualizar', aba, registros: [registro], em: new Date().toISOString() });
+    return this.atualizarVarios(aba, [registro]);
   }
 
   atualizarVarios(aba: NomeAba, registros: Registro[]) {
     if (!registros.length) return Promise.resolve();
-    return this.escrever({ op: 'atualizar', aba, registros, em: new Date().toISOString() });
+    const antes: Record<string, LinhaConhecida> = {};
+    for (const r of registros) {
+      const l = this.repo.linhaConhecida?.(aba, String(r.id));
+      if (l) antes[String(r.id)] = l;
+    }
+    return this.escrever({ op: 'atualizar', aba, registros, em: new Date().toISOString(), antes });
+  }
+
+  versao() {
+    return this.repo.versao?.() ?? Promise.resolve(null);
   }
 
   /** Envia o que está na fila, em ordem. Para no primeiro erro temporário. */
@@ -92,7 +106,7 @@ export class RepositorioComFila implements Repositorio {
 
   private async executar(e: Escrita) {
     if (e.op === 'inserir') await this.repo.inserir(e.aba, e.registros);
-    else await this.repo.atualizarVarios(e.aba, e.registros);
+    else await this.repo.atualizarVarios(e.aba, e.registros, e.antes);
   }
 
   private async salvar() {

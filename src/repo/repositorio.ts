@@ -2,7 +2,7 @@ import { montarBase, type Base, type Regravacao } from '../domain/base';
 import { lerAba, montarLinha, type AbaLida, type Registro } from '../domain/linhas';
 import { aba as specAba, ABAS, NOMES_ABAS, type NomeAba } from '../domain/schema';
 import type { Celula } from '../domain/valores';
-import type { FonteTabelas } from './fonte';
+import type { CelulaParaGravar, FonteTabelas } from './fonte';
 
 /**
  * Repositório (SPEC 4.2): carrega a planilha inteira, devolve o modelo e
@@ -12,8 +12,48 @@ export interface Repositorio {
   carregar(hoje: string): Promise<Base>;
   inserir(aba: NomeAba, registros: Registro[]): Promise<void>;
   atualizar(aba: NomeAba, registro: Registro): Promise<void>;
-  /** Várias edições com uma leitura da coluna id e uma escrita. */
-  atualizarVarios(aba: NomeAba, registros: Registro[]): Promise<void>;
+  /**
+   * Várias edições com uma leitura da coluna id e uma escrita. `antes` (por id) é
+   * a linha como o app a conhecia quando decidiu a edição; só as células que mudaram
+   * em relação a ela são gravadas. Sem `antes`, usa a última leitura da planilha.
+   */
+  atualizarVarios(aba: NomeAba, registros: Registro[], antes?: Record<string, LinhaConhecida>): Promise<void>;
+  /** Como o app conhece hoje a linha `id` (para guardar junto de uma escrita na fila). */
+  linhaConhecida?(aba: NomeAba, id: string): LinhaConhecida | undefined;
+  /** Versão atual da planilha (muda a cada escrita, de qualquer fonte). */
+  versao?(): Promise<string | null>;
+}
+
+/** Linha da planilha indexada pelo nome da coluna (não depende da ordem das colunas). */
+export type LinhaConhecida = Record<string, Celula>;
+
+/** Duas células com o mesmo conteúdo (ignora espaços nas pontas, TRUE/true, 68.9/"68.9"). */
+export function mesmaCelula(a: Celula | undefined, b: Celula | undefined): boolean {
+  const t = (c: Celula | undefined) => (c === null || c === undefined ? '' : String(c).trim().toLowerCase());
+  return t(a) === t(b);
+}
+
+/**
+ * Células a gravar: só as que mudaram em relação à linha conhecida. Assim, uma
+ * correção feita por outra fonte (o usuário ou o segundo cérebro) noutra coluna
+ * da mesma linha não é desfeita pelo app. Sem linha conhecida, grava as colunas
+ * que o registro traz.
+ */
+export function celulasAlteradas(
+  cabecalho: string[],
+  registro: Registro,
+  linha: number,
+  conhecida: Celula[] | undefined,
+): CelulaParaGravar[] {
+  const nova = montarLinha(cabecalho, registro, conhecida);
+  const r: CelulaParaGravar[] = [];
+  cabecalho.forEach((nome, i) => {
+    const chave = nome.trim().toLowerCase();
+    if (!chave || !(chave in registro)) return;
+    if (conhecida && mesmaCelula(conhecida[i], nova[i])) return;
+    r.push({ linha, coluna: i, valor: nova[i] });
+  });
+  return r;
 }
 
 export class RepositorioPlanilha implements Repositorio {
@@ -66,19 +106,39 @@ export class RepositorioPlanilha implements Repositorio {
     return this.atualizarVarios(aba, [registro]);
   }
 
-  async atualizarVarios(aba: NomeAba, registros: Registro[]): Promise<void> {
+  async atualizarVarios(aba: NomeAba, registros: Registro[], antes?: Record<string, LinhaConhecida>): Promise<void> {
     if (!registros.length) return;
     const cab = await this.cabecalho(aba);
     // SPEC 5: relê a coluna id antes de editar, porque o usuário pode ter ordenado a planilha.
     const ids = await this.fonte.lerColuna(aba, cab.indexOf('id'));
-    const linhas = registros.map((registro) => {
-      const pos = ids.findIndex((v, i) => i > 0 && String(v) === String(registro.id));
+    const celulas: CelulaParaGravar[] = [];
+    const conhecidasDepois: Array<[string, Celula[]]> = [];
+    for (const registro of registros) {
+      const id = String(registro.id);
+      const pos = ids.findIndex((v, i) => i > 0 && String(v) === id);
       if (pos < 0) throw new Error(`Não achei o registro ${registro.id} na aba ${aba}`);
-      const valores = montarLinha(cab, registro, this.brutas.get(String(registro.id)));
-      return { linha: pos + 1, valores, id: String(registro.id) };
+      const conhecida = antes?.[id] ? deChaves(cab, antes[id]) : this.brutas.get(id);
+      celulas.push(...celulasAlteradas(cab, registro, pos + 1, conhecida));
+      conhecidasDepois.push([id, montarLinha(cab, registro, conhecida)]);
+    }
+    await this.fonte.gravarCelulas(aba, celulas);
+    for (const [id, valores] of conhecidasDepois) this.brutas.set(id, valores);
+  }
+
+  linhaConhecida(aba: NomeAba, id: string): LinhaConhecida | undefined {
+    const bruta = this.brutas.get(id);
+    const cab = this.cabecalhos[aba];
+    if (!bruta || !cab) return undefined;
+    const r: LinhaConhecida = {};
+    cab.forEach((nome, i) => {
+      const chave = nome.trim().toLowerCase();
+      if (chave) r[chave] = bruta[i] ?? '';
     });
-    await this.fonte.gravarLinhas(aba, linhas.map(({ linha, valores }) => ({ linha, valores })));
-    for (const l of linhas) this.brutas.set(l.id, l.valores);
+    return r;
+  }
+
+  versao() {
+    return this.fonte.versao();
   }
 
   private async regravar(itens: Regravacao[]) {
@@ -89,16 +149,16 @@ export class RepositorioPlanilha implements Repositorio {
       // Linhas que já tinham id: confirma a posição relendo a coluna id.
       const idxId = cab.indexOf('id');
       const ids = idxId >= 0 ? await this.fonte.lerColuna(aba, idxId) : [];
-      const gravar = lista.map((it) => {
+      const gravar = lista.flatMap((it) => {
         const idOriginal = idxId >= 0 ? String(it.bruta[idxId] ?? '') : '';
         let linha = it.linha;
         if (idOriginal) {
           const pos = ids.findIndex((v, i) => i > 0 && String(v) === idOriginal);
           if (pos >= 0) linha = pos + 1;
         }
-        return { linha, valores: montarLinha(cab, it.registro, it.bruta) };
+        return celulasAlteradas(cab, it.registro, linha, it.bruta);
       });
-      await this.fonte.gravarLinhas(aba, gravar);
+      await this.fonte.gravarCelulas(aba, gravar);
     }
   }
 
@@ -114,4 +174,9 @@ export class RepositorioPlanilha implements Repositorio {
     }
     return this.cabecalhos[aba]!;
   }
+}
+
+/** Linha indexada por nome de coluna → posições do cabeçalho atual. */
+function deChaves(cabecalho: string[], linha: LinhaConhecida): Celula[] {
+  return cabecalho.map((nome) => linha[nome.trim().toLowerCase()] ?? '');
 }

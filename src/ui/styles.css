@@ -556,3 +556,15 @@ button.fatura > span { display: block; }
 .nome-arquivo { word-break: break-all; text-align: right; font-weight: 600; }
 .botao-texto.textos-linha { display: flex; flex-direction: column; width: 100%; min-width: 0; color: inherit; font: inherit; }
 .botao-arquivo.desativado { opacity: 0.55; }
+
+/* Puxar para atualizar */
+.puxar-atualizar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  color: #2E6B5A;
+  font-size: 0.875rem;
+  padding-bottom: 6px;
+  transition: height 0.15s ease-out;
+}

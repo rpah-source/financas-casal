@@ -7,7 +7,7 @@ const dir = process.argv[2];
 
 // ---------- Sheets falso ----------
 const tabs = {}; // titulo -> rows
-const ids = {}; let nextSheet = 1;
+const ids = {}; let nextSheet = 1; let versaoPlanilha = 1; let driveGets = 0;
 function colIdx(letters){ let n=0; for (const c of letters) n = n*26 + (c.charCodeAt(0)-64); return n-1; }
 function parseRange(r){
   const m = r.match(/^'((?:[^']|'')+)'(?:!([A-Z]+)(\d*)(?::([A-Z]+)(\d*))?)?$/);
@@ -26,7 +26,12 @@ function handleSheets(method, url, body){
     return { replies };
   }
   if (path.endsWith('/values:batchUpdate')) {
-    for (const d of body.data) { const p=parseRange(d.range); tabs[p.tab][p.row-1]=d.values[0]; }
+    for (const d of body.data) {
+      const p=parseRange(d.range); const c = p.col ? colIdx(p.col) : 0;
+      const linha = (tabs[p.tab][p.row-1] ||= []);
+      d.values[0].forEach((v,i)=>{ while (linha.length < c+i) linha.push(''); linha[c+i]=v; });
+    }
+    versaoPlanilha++;
     return {};
   }
   if (path.endsWith('/values:batchGet')) {
@@ -34,7 +39,7 @@ function handleSheets(method, url, body){
   }
   if (path.endsWith(':append')) {
     const r = path.split('/values/')[1].replace(':append','');
-    const p = parseRange(r); tabs[p.tab].push(...body.values); return {};
+    const p = parseRange(r); tabs[p.tab].push(...body.values); versaoPlanilha++; return {};
   }
   if (path.includes('/values/')) {
     const p = parseRange(path.split('/values/')[1]); const i = colIdx(p.col);
@@ -67,6 +72,9 @@ window.google = window.google || {};
   await ctx.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType:'text/javascript', body: GIS }));
   await ctx.route('https://apis.google.com/js/api.js', r => r.fulfill({ contentType:'text/javascript', body: PICKER }));
   await ctx.route('https://www.googleapis.com/drive/v3/files**', async r => {
+    if (r.request().method()==='GET') { driveGets++;
+      return r.fulfill({ contentType:'application/json', headers:{'access-control-allow-origin':'*'}, body: JSON.stringify({ modifiedTime: `2026-11-25T00:00:${String(versaoPlanilha%60).padStart(2,'0')}.000Z` }) });
+    }
     const body = JSON.parse(r.request().postData()); driveCriados.push(body);
     const id = body.mimeType.includes('spreadsheet') ? 'planilha_nova' : 'pasta_faturas_'+(++driveN);
     if (id === 'planilha_nova') { tabs['Página1'] = []; ids['Página1'] = 0; }
@@ -133,6 +141,35 @@ window.google = window.google || {};
   await p.reload();
   await p.waitForSelector('text=Ainda podemos gastar');
   console.log('após reabrir, faixa demo?', await p.$('.faixa-demo') !== null);
+
+  // Correção feita por fora (segundo cérebro) enquanto o app está aberto: ao voltar
+  // para o app, a versão da planilha mudou e ele recarrega sozinho.
+  const iFeira = tabs.Lancamentos.findIndex(r => r[ci.indexOf('descricao')] === 'Feira');
+  tabs.Lancamentos[iFeira][ci.indexOf('descricao')] = 'Feira corrigida por fora';
+  versaoPlanilha++;
+  await p.waitForTimeout(1500);
+  await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await p.click('nav >> text=Extrato');
+  await p.waitForTimeout(1500);
+  await p.screenshot({ path: dir+'/extrato.png', fullPage: true });
+  console.log('drive GETs:', driveGets, 'erros:', errs);
+  await p.waitForSelector('text=Feira corrigida por fora', { timeout: 5000 });
+  console.log('recarregou ao voltar ao app: ok');
+
+  // Puxar para atualizar (gesto no topo da tela).
+  tabs.Lancamentos[iFeira][ci.indexOf('descricao')] = 'Feira puxada';
+  versaoPlanilha++;
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.evaluate(async () => {
+    const t = (y) => new Touch({ identifier: 1, target: document.body, clientX: 100, clientY: y });
+    window.dispatchEvent(new TouchEvent('touchstart', { touches: [t(100)] }));
+    for (let y = 120; y <= 400; y += 40) { window.dispatchEvent(new TouchEvent('touchmove', { touches: [t(y)] })); await new Promise(r => setTimeout(r, 16)); }
+  });
+  await p.waitForSelector('text=Solte para atualizar');
+  await p.screenshot({ path: dir+'/puxar-atualizar.png' });
+  await p.evaluate(() => window.dispatchEvent(new TouchEvent('touchend', { touches: [] })));
+  await p.waitForSelector('text=Feira puxada', { timeout: 5000 });
+  console.log('puxar para atualizar: ok');
   console.log('erros:', errs);
   await b.close();
 })();

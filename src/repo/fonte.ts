@@ -13,10 +13,25 @@ export interface FonteTabelas {
   lerColuna(aba: NomeAba, letraOuIndice: number): Promise<Celula[]>;
   /** Acrescenta linhas no fim da aba. */
   anexar(aba: NomeAba, linhas: Celula[][]): Promise<void>;
-  /** Grava várias linhas inteiras (número da linha na planilha, 1 = cabeçalho). */
-  gravarLinhas(aba: NomeAba, linhas: Array<{ linha: number; valores: Celula[] }>): Promise<void>;
+  /**
+   * Grava só as células indicadas (linha na planilha, 1 = cabeçalho; coluna a partir de 0).
+   * Gravar célula a célula evita desfazer o que outra fonte (o usuário ou o segundo
+   * cérebro) mudou em outras colunas da mesma linha depois da última leitura.
+   */
+  gravarCelulas(aba: NomeAba, celulas: CelulaParaGravar[]): Promise<void>;
+  /**
+   * Versão da planilha (Drive: `modifiedTime`). Muda a cada escrita, de qualquer fonte.
+   * Serve para saber se o que está no aparelho ficou velho. `null` = não dá para saber.
+   */
+  versao(): Promise<string | null>;
   /** Cria as abas que faltam (com cabeçalho e validações) e acrescenta colunas que faltam. */
   garantirEstrutura(abas: Aba[], cabecalhosAtuais: Partial<Record<NomeAba, string[]>>): Promise<void>;
+}
+
+export interface CelulaParaGravar {
+  linha: number;
+  coluna: number;
+  valor: Celula;
 }
 
 export class ErroSemConexao extends Error {

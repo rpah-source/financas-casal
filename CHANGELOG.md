@@ -1,5 +1,11 @@
 # Changelog
 
+## Dados sempre atualizados — 25/11/2026
+- **Puxar para atualizar:** no topo de qualquer tela (menos Lançar), puxe para baixo e solte. O app manda o que estiver aguardando envio e lê a planilha de novo.
+- **Ao voltar para o app** (trocar de aplicativo, desbloquear o iPhone), ele confere se a planilha mudou e recarrega sozinho.
+- **Correções feitas fora do app não se perdem:** quando o app edita um lançamento, ele grava só o que mudou. Se o segundo cérebro corrigiu a categoria ou o projeto, a correção fica.
+- O que testar: corrija a categoria de um lançamento direto na planilha (ou peça ao segundo cérebro), volte ao app e confira no Extrato. Depois, no app, edite outra coisa no mesmo lançamento (ex.: observação) e veja na planilha que a categoria corrigida continua lá.
+
 ## Revisar detalhada, empréstimos e anexos — 21/11/2026
 - **Revisar:** toque num item para ver o texto completo do banco e ajustar descrição, categoria, conta, pessoa e criar regra antes de lançar.
 - **Empréstimo:** nova categoria de entrada. Ao lançar ou aceitar um empréstimo, o app pede os dados da dívida (credor, parcela, parcelas que faltam, dia) e agenda as parcelas futuras. A entrada não conta como renda.
